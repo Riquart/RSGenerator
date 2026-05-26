@@ -198,26 +198,29 @@ export default function DashboardPage() {
     setDraftText("");
   };
 
-  const ingestUrl = async () => {
-    if (!url.trim()) return;
+  const ingestUrl = async (urlToIngest = url.trim()) => {
+    if (!urlToIngest.trim()) return null;
     setError("");
     setLoadingLabel("Analyse de l'URL");
     try {
       const res = await fetch("/api/ai/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: urlToIngest }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Analyse impossible");
-      addSource({
+      const source = {
         kind: "url",
-        title: data.title || "Page web",
+        title: data.title || urlToIngest,
         content: data.content || "",
-      });
+      } satisfies Omit<SourceItem, "id" | "selected">;
+      addSource(source);
       setUrl("");
+      return source;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible d'analyser l'URL");
+      return null;
     } finally {
       setLoadingLabel("");
     }
@@ -271,13 +274,16 @@ export default function DashboardPage() {
     if (text) await navigator.clipboard.writeText(text);
   };
 
-  const generatePost = async (platform: Platform): Promise<GeneratedItem> => {
+  const generatePost = async (
+    platform: Platform,
+    sourceContent: string
+  ): Promise<GeneratedItem> => {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "social_post",
-        sourceContent: combinedPrompt,
+        sourceContent,
         platform: platformToSocial(platform),
         provider: config.socialProvider,
         model: config.socialModel,
@@ -294,14 +300,17 @@ export default function DashboardPage() {
     };
   };
 
-  const generateImageResult = async (platform: Platform): Promise<GeneratedItem> => {
-    const post = await generatePost(platform);
+  const generateImageResult = async (
+    platform: Platform,
+    sourceContent: string
+  ): Promise<GeneratedItem> => {
+    const post = await generatePost(platform, sourceContent);
     const res = await fetch("/api/ai/image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        networkPost: post.text || combinedPrompt.slice(0, 800),
-        sourceContent: combinedPrompt,
+        networkPost: post.text || sourceContent.slice(0, 800),
+        sourceContent,
         platform,
         provider: config.imageProvider,
         modelId: config.imageModel,
@@ -319,13 +328,16 @@ export default function DashboardPage() {
     };
   };
 
-  const generateCarousel = async (platform: Platform): Promise<GeneratedItem> => {
+  const generateCarousel = async (
+    platform: Platform,
+    sourceContent: string
+  ): Promise<GeneratedItem> => {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "carousel_script",
-        sourceContent: `${combinedPrompt}\n\nNombre de slides souhaité : ${slideCount}.`,
+        sourceContent: `${sourceContent}\n\nNombre de slides souhaité : ${slideCount}.`,
         platform: platformToCarousel(platform),
         provider: config.textProvider,
         model: config.textModel,
@@ -345,7 +357,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           networkPost: `${slide.title}\n${slide.text}`,
-          sourceContent: combinedPrompt,
+          sourceContent,
           platform,
           provider: config.imageProvider,
           modelId: config.imageModel,
@@ -368,13 +380,13 @@ export default function DashboardPage() {
     };
   };
 
-  const generateArticle = async (): Promise<GeneratedItem> => {
+  const generateArticle = async (sourceContent: string): Promise<GeneratedItem> => {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "article_draft",
-        topics: combinedPrompt,
+        topics: sourceContent,
         tone: "Expert & Rassurant",
         lengthTarget: "medium",
         provider: config.textProvider,
@@ -391,7 +403,7 @@ export default function DashboardPage() {
     };
   };
 
-  const generateVideoPrompt = async (): Promise<GeneratedItem> => {
+  const generateVideoPrompt = async (sourceContent: string): Promise<GeneratedItem> => {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -400,7 +412,7 @@ export default function DashboardPage() {
         provider: config.textProvider,
         model: config.textModel,
         blocks: {
-          scene: `Créer une vidéo courte en français à partir de ces sources : ${combinedPrompt.slice(0, 1800)}`,
+          scene: `Créer une vidéo courte en français à partir de ces sources : ${sourceContent.slice(0, 1800)}`,
           style: "moderne, professionnel, clair, inspiré d'un éditeur logiciel santé",
           camera: "plans propres, rythme calme, transitions lisibles",
           movement: "mouvements fluides et sobres",
@@ -421,7 +433,15 @@ export default function DashboardPage() {
   };
 
   const generateAll = async () => {
-    if (!combinedPrompt.trim()) {
+    let sourceContent = combinedPrompt;
+
+    if (!sourceContent.trim() && url.trim()) {
+      const source = await ingestUrl(url.trim());
+      if (!source) return;
+      sourceContent = `[${source.title}]\n${source.content}`;
+    }
+
+    if (!sourceContent.trim()) {
       setError("Ajoute au moins une source avant de générer.");
       return;
     }
@@ -439,32 +459,32 @@ export default function DashboardPage() {
         if (work === "post") {
           for (const platform of selectedPlatforms) {
             setLoadingLabel(`Post ${platform}`);
-            nextResults.push(await generatePost(platform));
+            nextResults.push(await generatePost(platform, sourceContent));
             setResults([...nextResults]);
           }
         }
         if (work === "carousel") {
           for (const platform of selectedPlatforms) {
             setLoadingLabel(`Carrousel ${platform}`);
-            nextResults.push(await generateCarousel(platform));
+            nextResults.push(await generateCarousel(platform, sourceContent));
             setResults([...nextResults]);
           }
         }
         if (work === "image") {
           for (const platform of selectedPlatforms) {
             setLoadingLabel(`Image ${platform}`);
-            nextResults.push(await generateImageResult(platform));
+            nextResults.push(await generateImageResult(platform, sourceContent));
             setResults([...nextResults]);
           }
         }
         if (work === "article") {
           setLoadingLabel("Article blog");
-          nextResults.push(await generateArticle());
+          nextResults.push(await generateArticle(sourceContent));
           setResults([...nextResults]);
         }
         if (work === "video") {
           setLoadingLabel("Prompt vidéo");
-          nextResults.push(await generateVideoPrompt());
+          nextResults.push(await generateVideoPrompt(sourceContent));
           setResults([...nextResults]);
         }
       }
@@ -555,12 +575,13 @@ export default function DashboardPage() {
                     onChange={(event) => setUrl(event.target.value)}
                     placeholder="https://..."
                   />
-                  <Button variant="outline" onClick={ingestUrl} disabled={!url.trim() || isBusy}>
+                  <Button variant="outline" onClick={() => void ingestUrl()} disabled={!url.trim() || isBusy}>
                     <Link2 className="h-4 w-4" />
+                    Ajouter
                   </Button>
                 </div>
                 <p className="text-xs text-slate-500">
-                  MVP : extraction directe. Cible suivante : analyse distante via Perplexity.
+                  Clique sur Ajouter, ou lance directement la génération : l'URL sera ajoutée automatiquement.
                 </p>
               </div>
 
