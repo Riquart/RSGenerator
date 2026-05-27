@@ -38,3 +38,4 @@ npm run dev          # development server
 ## Deployment Modes
 - **Windows standalone**: `.next/standalone/` + `start.bat`
 - **Web**: Vercel recommended
+- **Hostinger Managed Node.js Web App**: Standalone deployment to `nodejs/` via GitHub Actions with specific patches for Passenger Unix socket routing and `preload-timestamp.js` crash mitigation. See [DEPLOYMENT.md](file:///x:/BILANS/PROJECT/SOCIAL%20MEDIA%20GENERATORE%20V2/DEPLOYMENT.md) for full setup instructions and troubleshooting.
