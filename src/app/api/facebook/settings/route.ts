@@ -49,11 +49,18 @@ export async function POST(request: NextRequest) {
       FACEBOOK_N8N_WEBHOOK_URL: n8nWebhookUrl?.trim() || undefined,
     })
 
+    if (pageAccessToken?.trim()) {
+      process.env.FACEBOOK_PAGE_ACCESS_TOKEN = pageAccessToken.trim()
+    }
+    if (n8nWebhookUrl?.trim()) {
+      process.env.FACEBOOK_N8N_WEBHOOK_URL = n8nWebhookUrl.trim()
+    }
+
     return NextResponse.json({
       success: true,
       settings,
       message:
-        'Parametres Facebook sauvegardes. Redemarre le serveur si tu viens de modifier un token ou une URL webhook.',
+        'Parametres Facebook sauvegardes. Tu peux publier immediatement.',
     })
   } catch (error) {
     console.error('Facebook settings save error:', error)
