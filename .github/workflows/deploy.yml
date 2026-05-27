@@ -100,5 +100,12 @@ jobs:
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ls -la $TARGET_DIR"
           echo "=== REMOTE .htaccess CONTENT ==="
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cat $TARGET_DIR/.htaccess"
+          echo "=== REMOTE PROCESSES ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ps aux | grep node || true"
+          echo "=== PM2 STATUS ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "pm2 list || true"
+          echo "=== LISTENING PORTS ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ss -tuln || netstat -tuln || true"
+
 
 
