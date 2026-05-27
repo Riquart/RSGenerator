@@ -96,5 +96,9 @@ jobs:
           SSH_USER=$(echo "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '\r\n ')
           TARGET_DIR=$(echo "${{ secrets.HOSTINGER_SERVER_DIR }}" | tr -d '\r\n ')
           
+          echo "=== REMOTE DIRECTORY LISTING ==="
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ls -la $TARGET_DIR"
+          echo "=== REMOTE .htaccess CONTENT ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cat $TARGET_DIR/.htaccess"
+
 
