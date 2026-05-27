@@ -95,17 +95,21 @@ jobs:
           SSH_PORT=$(echo "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '\r\n ')
           SSH_USER=$(echo "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '\r\n ')
           TARGET_DIR=$(echo "${{ secrets.HOSTINGER_SERVER_DIR }}" | tr -d '\r\n ')
+          PARENT_DIR=$(dirname "$TARGET_DIR")
           
-          echo "=== REMOTE DIRECTORY LISTING ==="
+          echo "=== REMOTE PARENT DIRECTORY LISTING ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ls -la $PARENT_DIR"
+          echo "=== REMOTE TARGET DIRECTORY LISTING ==="
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ls -la $TARGET_DIR"
+          echo "=== REMOTE .builds DIRECTORY LISTING ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ls -la $TARGET_DIR/.builds || true"
           echo "=== REMOTE .htaccess CONTENT ==="
-          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cat $TARGET_DIR/.htaccess"
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cat $TARGET_DIR/.htaccess || true"
           echo "=== REMOTE PROCESSES ==="
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ps aux | grep node || true"
-          echo "=== PM2 STATUS ==="
-          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "pm2 list || true"
           echo "=== LISTENING PORTS ==="
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "ss -tuln || netstat -tuln || true"
+
 
 
 
