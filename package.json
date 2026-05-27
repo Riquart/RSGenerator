@@ -7,7 +7,7 @@
     "build": "next build",
     "build:static": "next build",
     "postbuild": "node -e \"const fs = require('fs'); try { if (fs.existsSync('public')) fs.cpSync('public', '.next/standalone/public', {recursive: true, force: true}); if (fs.existsSync('.next/static')) fs.cpSync('.next/static', '.next/standalone/.next/static', {recursive: true, force: true}); } catch (e) { console.error(e); }\"",
-    "start": "next start",
+    "start": "node server.js",
     "lint": "eslint"
   },
   "dependencies": {
