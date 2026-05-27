@@ -28,7 +28,11 @@ jobs:
         run: npm ci
 
       - name: Build standalone app
-        run: npm run build
+        run: |
+          npm run build
+          # Patch server.js to support Passenger Unix domain socket routing
+          node -e "const fs = require('fs'); const file = '.next/standalone/server.js'; let content = fs.readFileSync(file, 'utf8'); content = content.replace('const currentPort = parseInt(process.env.PORT, 10) || 3000', 'const currentPort = process.env.PORT && isNaN(process.env.PORT) ? process.env.PORT : (parseInt(process.env.PORT, 10) || 3000)'); fs.writeFileSync(file, content, 'utf8');"
+
 
       - name: Prepare standalone folder
         run: |
