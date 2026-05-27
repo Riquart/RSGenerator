@@ -77,7 +77,9 @@ jobs:
           # Sync the entire standalone folder to Hostinger
           # We exclude brand-identity.json and prompts-custom.json to prevent overwriting server-side updates
           # We exclude .env* to avoid overwriting any custom environment files on the server
+          # We exclude .htaccess to avoid deleting the web server routing configuration
           sshpass -e rsync -avz --delete \
+            --exclude ".htaccess" \
             --exclude "brand-identity.json" \
             --exclude "prompts-custom.json" \
             --exclude ".env*" \
