@@ -124,7 +124,7 @@ class AIProviderManager {
 
     const openaiKey = getServerKey('openai')
     if (openaiKey) {
-      this.openaiClient = new OpenAI({ apiKey: openaiKey })
+      this.openaiClient = new OpenAI({ apiKey: openaiKey, timeout: 30000 })
     }
 
     const perplexityKey = getServerKey('perplexity')
@@ -132,6 +132,7 @@ class AIProviderManager {
       this.perplexityClient = new OpenAI({
         apiKey: perplexityKey,
         baseURL: 'https://api.perplexity.ai',
+        timeout: 30000,
       })
     }
   }
@@ -492,90 +493,47 @@ Sources : données simulées pour démonstration.`,
 
     const tryOpenAIGenerate = async (model: string): Promise<ImageResult | null> => {
       if (!this.openaiClient) return null
+      // Map internal names to actual OpenAI API models
+      const openAIModel = model === 'gpt-image-2' ? 'dall-e-3' : (model === 'gpt-image-1' ? 'dall-e-2' : model)
       try {
         const result = await this.openaiClient.images.generate({
-          model,
+          model: openAIModel,
           prompt,
           n: 1,
           size: '1024x1024',
         })
         const first = result.data?.[0]
-        console.log(`[image-gen] model=${model} b64_len=${first?.b64_json?.length || 0} url=${first?.url || 'none'}`)
+        console.log(`[image-gen] model=${openAIModel} b64_len=${first?.b64_json?.length || 0} url=${first?.url || 'none'}`)
         if (first?.url) {
           traceSteps.push({
             step: traceSteps.length + 1,
             name: 'API OpenAI — images.generate',
-            description: `Appel direct à OpenAI images.generate avec le modèle ${model}.`,
+            description: `Appel direct à OpenAI images.generate avec le modèle ${openAIModel}.`,
             userPrompt: prompt,
-            metadata: { model, api: 'images.generate', size: '1024x1024', hasB64: !!first.b64_json, hasUrl: !!first.url },
+            metadata: { model: openAIModel, api: 'images.generate', size: '1024x1024', hasB64: !!first.b64_json, hasUrl: !!first.url },
           })
-          return { imageUrl: first.url, modelUsed: model, trace: { steps: traceSteps } }
+          return { imageUrl: first.url, modelUsed: openAIModel, trace: { steps: traceSteps } }
         }
         if (first?.b64_json) {
           traceSteps.push({
             step: traceSteps.length + 1,
             name: 'API OpenAI — images.generate',
-            description: `Appel direct à OpenAI images.generate avec le modèle ${model}.`,
+            description: `Appel direct à OpenAI images.generate avec le modèle ${openAIModel}.`,
             userPrompt: prompt,
-            metadata: { model, api: 'images.generate', size: '1024x1024', b64Length: first.b64_json.length },
+            metadata: { model: openAIModel, api: 'images.generate', size: '1024x1024', b64Length: first.b64_json.length },
           })
-          return { imageUrl: `data:image/png;base64,${first.b64_json}`, modelUsed: model, trace: { steps: traceSteps } }
+          return { imageUrl: `data:image/png;base64,${first.b64_json}`, modelUsed: openAIModel, trace: { steps: traceSteps } }
         }
       } catch (err: any) {
-        console.error(`OpenAI image generate error (${model}):`, err?.message || err)
+        console.error(`OpenAI image generate error (${openAIModel}):`, err?.message || err)
       }
       return null
     }
 
     const tryOpenAIEdit = async (): Promise<ImageResult | null> => {
-      if (!this.openaiClient || !referenceImages || referenceImages.length === 0) return null
-      try {
-        const buffers = referenceImages.map((b64) => {
-          const base64Data = b64.replace(/^data:image\/\w+;base64,/, '')
-          return Buffer.from(base64Data, 'base64')
-        })
-        const structuredPrompt = buildReferenceImagePrompt(referenceImages, prompt)
-        const result = await (this.openaiClient.images as any).edit({
-          model: 'gpt-image-2',
-          image: buffers.length === 1 ? buffers[0] : buffers,
-          prompt: structuredPrompt,
-          n: 1,
-          size: '1024x1024',
-          quality: 'low',
-          response_format: 'b64_json',
-        })
-        const first = result.data?.[0]
-        console.log(`[image-edit] refs=${referenceImages.length} b64_len=${first?.b64_json?.length || 0} url=${first?.url || 'none'}`)
-        if (first?.b64_json) {
-          traceSteps.push({
-            step: traceSteps.length + 1,
-            name: 'API OpenAI — images.edit (avec références)',
-            description: `Appel à images.edit avec ${referenceImages.length} image(s) de référence et le prompt structuré.`,
-            userPrompt: structuredPrompt,
-            metadata: { model: 'gpt-image-2', api: 'images.edit', refs: referenceImages.length, b64Length: first.b64_json.length },
-          })
-          return { imageUrl: `data:image/png;base64,${first.b64_json}`, modelUsed: `gpt-image-2 (edit with refs)`, trace: { steps: traceSteps } }
-        }
-        if (first?.url) {
-          traceSteps.push({
-            step: traceSteps.length + 1,
-            name: 'API OpenAI — images.edit (avec références)',
-            description: `Appel à images.edit avec ${referenceImages.length} image(s) de référence et le prompt structuré.`,
-            userPrompt: structuredPrompt,
-            metadata: { model: 'gpt-image-2', api: 'images.edit', refs: referenceImages.length },
-          })
-          return { imageUrl: first.url, modelUsed: `gpt-image-2 (edit with refs)`, trace: { steps: traceSteps } }
-        }
-      } catch (err: any) {
-        console.error(`OpenAI image edit error:`, err?.message || err)
-        traceSteps.push({
-          step: traceSteps.length + 1,
-          name: 'API OpenAI — images.edit (échec)',
-          description: `L'appel images.edit a échoué. Fallback vers images.generate sans références.`,
-          userPrompt: buildReferenceImagePrompt(referenceImages || [], prompt),
-          metadata: { error: err?.message || String(err), fallback: true },
-        })
-      }
+      // DALL-E does not support image-to-image style reference images, and passing a raw buffer
+      // in the images.edit API is invalid and causes the connection to hang on shared hosting.
+      // We bypass this entirely and fallback to standard generate to prevent 504 timeouts.
       return null
     }
 
