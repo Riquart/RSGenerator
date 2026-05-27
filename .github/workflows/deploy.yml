@@ -30,8 +30,8 @@ jobs:
       - name: Build standalone app
         run: |
           npm run build
-          # Patch server.js to support Passenger Unix domain socket routing
-          node -e "const fs = require('fs'); const file = '.next/standalone/server.js'; let content = fs.readFileSync(file, 'utf8'); content = content.replace('const currentPort = parseInt(process.env.PORT, 10) || 3000', 'const currentPort = process.env.PORT && isNaN(process.env.PORT) ? process.env.PORT : (parseInt(process.env.PORT, 10) || 3000)'); fs.writeFileSync(file, content, 'utf8');"
+          # Run patch script to log env variables and patch port binding in server.js
+          node scripts/patch-server.js
 
 
       - name: Prepare standalone folder
@@ -144,11 +144,20 @@ jobs:
           SSH_USER=$(echo "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '\r\n ')
           NODEJS_DIR=$(echo "${{ secrets.HOSTINGER_SERVER_DIR }}" | tr -d '\r\n ' | sed 's/public_html/nodejs/')
           
-          echo "=== RUNNING NODE SERVER.JS TEST ==="
-          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cd $NODEJS_DIR && timeout 5s /opt/alt/alt-nodejs22/root/bin/node server.js || true"
+          echo "Uploading diagnostic script to remote server..."
+          sshpass -e scp -P $SSH_PORT -o StrictHostKeyChecking=no scripts/diag.sh $SSH_USER@$SSH_HOST:$NODEJS_DIR/diag.sh
           
-          echo "=== REMOTE console.log OUTPUT ==="
-          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cat $NODEJS_DIR/console.log || echo 'No console.log yet'"
+          echo "Running remote server diagnostics..."
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+            "tr -d '\r' < $NODEJS_DIR/diag.sh > $NODEJS_DIR/diag_lf.sh && bash $NODEJS_DIR/diag_lf.sh $NODEJS_DIR && rm -f $NODEJS_DIR/diag.sh $NODEJS_DIR/diag_lf.sh"
+          
+          echo "=== REMOTE ACTIVE ENVIRONMENT LOG (If created by Passenger/LiteSpeed) ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+            "cat $NODEJS_DIR/debug_env.log || echo 'No active debug_env.log yet (process has not booted via Passenger)'"
+          
+          echo "=== REMOTE ACTIVE CONSOLE LOG (If created by Passenger/LiteSpeed) ==="
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+            "cat $NODEJS_DIR/console.log || echo 'No active console.log yet (process has not booted via Passenger)'"
 
 
 
