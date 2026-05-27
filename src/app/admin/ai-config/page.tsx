@@ -61,7 +61,7 @@ interface Assignment {
 }
 
 export default function AIConfigPage() {
-  const { config, setProvider } = useAIConfig();
+  const { config, setProvider, updateConfig } = useAIConfig();
 
   const [status, setStatus] = useState<ProviderStatus | null>(null);
   const [testLoading, setTestLoading] = useState<AIProvider | null>(null);
@@ -119,6 +119,22 @@ export default function AIConfigPage() {
   useEffect(() => {
     fetchStatus();
   }, []);
+
+  useEffect(() => {
+    setModels({
+      text: config.textModel,
+      social: config.socialModel,
+      research: config.researchModel,
+      image: config.imageModel,
+      video: config.videoModel,
+    });
+  }, [
+    config.textModel,
+    config.socialModel,
+    config.researchModel,
+    config.imageModel,
+    config.videoModel,
+  ]);
 
   const testProvider = async (provider: AIProvider) => {
     setTestLoading(provider);
@@ -206,11 +222,13 @@ export default function AIConfigPage() {
   };
 
   const saveModels = () => {
-    setProvider("textModel", models.text);
-    setProvider("socialModel", models.social);
-    setProvider("researchModel", models.research);
-    setProvider("imageModel", models.image);
-    setProvider("videoModel", models.video);
+    updateConfig({
+      textModel: models.text.trim(),
+      socialModel: models.social.trim(),
+      researchModel: models.research.trim(),
+      imageModel: models.image.trim(),
+      videoModel: models.video.trim(),
+    });
     setModelSaveMsg("Modeles enregistres. Aucun redemarrage necessaire.");
   };
 

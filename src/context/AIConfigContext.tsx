@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { AIProvider } from '@/lib/ai/server-keys'
 
 export interface AIConfig {
@@ -53,6 +53,7 @@ const defaultConfig: AIConfig = {
 interface AIConfigContextType {
   config: AIConfig
   setProvider: (category: keyof AIConfig, value: string) => void
+  updateConfig: (updates: Partial<AIConfig>) => void
   resetConfig: () => void
 }
 
@@ -74,19 +75,20 @@ function sanitizeConfig(partial: Partial<AIConfig>): AIConfig {
 }
 
 export function AIConfigProvider({ children }: { children: React.ReactNode }) {
-  const [config, setConfig] = useState<AIConfig>(() => {
+  const [config, setConfig] = useState<AIConfig>(defaultConfig)
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('ai_config')
       if (saved) {
         try {
-          return sanitizeConfig(JSON.parse(saved))
+          setConfig(sanitizeConfig(JSON.parse(saved)))
         } catch {
           // ignore
         }
       }
     }
-    return defaultConfig
-  })
+  }, [])
 
   const persist = useCallback((newConfig: AIConfig) => {
     setConfig(newConfig)
@@ -117,12 +119,22 @@ export function AIConfigProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
+  const updateConfig = useCallback((updates: Partial<AIConfig>) => {
+    setConfig((current) => {
+      const newConfig = sanitizeConfig({ ...current, ...updates })
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ai_config', JSON.stringify(newConfig))
+      }
+      return newConfig
+    })
+  }, [])
+
   const resetConfig = useCallback(() => {
     persist(defaultConfig)
   }, [persist])
 
   return (
-    <AIConfigContext.Provider value={{ config, setProvider, resetConfig }}>
+    <AIConfigContext.Provider value={{ config, setProvider, updateConfig, resetConfig }}>
       {children}
     </AIConfigContext.Provider>
   )
