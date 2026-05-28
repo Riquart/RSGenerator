@@ -138,6 +138,9 @@ jobs:
           # LiteSpeed serves static files DIRECTLY from public_html/, bypassing Node.js/Passenger.
           # Without this, ALL /_next/static/ requests return 404 because LiteSpeed can't find them.
           # The static files in nodejs/.next/static/ are only readable by Node.js, not LiteSpeed.
+          echo "Creating public_html/_next/static/ directory on server..."
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+            "mkdir -p $PUBLIC_HTML_DIR/_next/static/"
           echo "Deploying Next.js static assets to public_html/_next/static/ for direct LiteSpeed serving..."
           sshpass -e rsync -avz --delete \
             -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" \
