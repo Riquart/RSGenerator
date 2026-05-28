@@ -136,6 +136,29 @@ export default function AIConfigPage() {
     config.videoModel,
   ]);
 
+  // Re-sync the TXT/WEB/IMG/VID checkboxes whenever the persisted config
+  // changes. `config` starts as defaultConfig and is only loaded from
+  // localStorage in an effect *after* mount, so without this the checkboxes
+  // keep showing the defaults (e.g. IMG -> OpenAI) instead of the saved state.
+  useEffect(() => {
+    const next: Record<string, Assignment> = {};
+    ALL_PROVIDERS.forEach((p) => {
+      next[p] = { txt: false, web: false, img: false, vid: false };
+    });
+    ALL_PROVIDERS.forEach((p) => {
+      if (p === config.textProvider) next[p].txt = true;
+      if (p === config.researchProvider) next[p].web = true;
+      if (p === config.imageProvider) next[p].img = true;
+      if (p === config.videoProvider) next[p].vid = true;
+    });
+    setAssignments(next as Record<AIProvider, Assignment>);
+  }, [
+    config.textProvider,
+    config.researchProvider,
+    config.imageProvider,
+    config.videoProvider,
+  ]);
+
   const testProvider = async (provider: AIProvider) => {
     setTestLoading(provider);
     try {
