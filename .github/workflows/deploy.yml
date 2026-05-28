@@ -163,6 +163,23 @@ jobs:
           # Update .htaccess on the server to use an absolute path for console.log dynamically
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
             "sed -i \"s|SetEnv LSNODE_CONSOLE_LOG console.log|SetEnv LSNODE_CONSOLE_LOG $NODEJS_DIR/console.log|\" $PUBLIC_HTML_DIR/.htaccess || true"
+          
+          # Inject LiteSpeed cache-disable directive so LiteSpeed NEVER caches the Node.js HTML responses.
+          # Without this, LiteSpeed serves stale HTML (with old JS/CSS hashes) after a deployment,
+          # causing 404 errors for all static chunk files that have been replaced by rsync.
+          echo "Patching .htaccess to disable LiteSpeed cache for dynamic pages..."
+          sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "
+            if ! grep -q 'CacheDisable public' $PUBLIC_HTML_DIR/.htaccess 2>/dev/null; then
+              echo '' >> $PUBLIC_HTML_DIR/.htaccess
+              echo '# Disable LiteSpeed Cache for all Node.js app responses' >> $PUBLIC_HTML_DIR/.htaccess
+              echo '<IfModule LiteSpeed>' >> $PUBLIC_HTML_DIR/.htaccess
+              echo 'CacheDisable public /' >> $PUBLIC_HTML_DIR/.htaccess
+              echo '</IfModule>' >> $PUBLIC_HTML_DIR/.htaccess
+              echo 'Cache-control directive added to .htaccess'
+            else
+              echo 'Cache-disable already present in .htaccess, skipping'
+            fi
+          "
           echo "=== UPDATED REMOTE .htaccess CONTENT ==="
           sshpass -e ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "cat $PUBLIC_HTML_DIR/.htaccess || true"
 
