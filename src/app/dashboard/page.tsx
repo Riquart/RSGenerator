@@ -159,6 +159,7 @@ function DashboardContent() {
   const [error, setError] = useState("");
   const [results, setResults] = useState<GeneratedItem[]>([]);
   const [copiedId, setCopiedId] = useState("");
+  const [synthesisOpen, setSynthesisOpen] = useState(false);
 
   const activeContent = useMemo(() => {
     return sources
@@ -924,29 +925,35 @@ function DashboardContent() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1fr_380px] lg:px-8">
+      <div className="mx-auto max-w-4xl px-4 py-6 pb-28 sm:px-6 lg:px-8">
         <section className="space-y-6">
-          <div className="rounded-lg border bg-white p-6 shadow-sm">
+          <div className="pt-2">
             <div className="max-w-3xl">
-              <Badge className="mb-3 bg-[#10aee2]/10 text-[#087aa0] hover:bg-[#10aee2]/10">
+              <Badge className="mb-4 bg-[#10aee2]/10 text-[#087aa0] hover:bg-[#10aee2]/10">
                 Studio de création
               </Badge>
-              <h2 className="text-3xl font-semibold tracking-tight">
-                Transforme tes sources en contenus prêts à publier.
+              <h2 className="text-4xl font-bold leading-tight tracking-tight">
+                Transforme tes sources en contenus{" "}
+                <span className="bg-gradient-to-r from-[#10aee2] to-[#6366f1] bg-clip-text text-transparent">
+                  prêts à publier.
+                </span>
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Ajoute un texte, un PDF, une URL ou une capture d'écran, choisis les
-                réseaux et génère les formats utiles sans manipuler les prompts ni les modèles.
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-500">
+                Dépose un texte, un PDF, une URL ou une capture, choisis tes réseaux et
+                lance une seule génération. Zéro prompt, zéro réglage de modèle.
               </p>
             </div>
           </div>
 
           <Card className="rounded-lg">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Upload className="h-5 w-5 text-[#10aee2]" />
-                Sources
-              </CardTitle>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-3 text-lg">
+                  <span className="grid h-7 w-7 place-items-center rounded-md bg-slate-100 text-sm font-bold text-[#10aee2]">1</span>
+                  Sources
+                </CardTitle>
+                <span className="text-sm text-slate-400">Ajoute une ou plusieurs entrées</span>
+              </div>
             </CardHeader>
             <CardContent className="grid gap-4 xl:grid-cols-2">
               <div className="space-y-3 rounded-lg border p-4">
@@ -1061,11 +1068,26 @@ function DashboardContent() {
 
           <Card className="rounded-lg border-[#10aee2]/20 bg-white">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Layers3 className="h-5 w-5 text-[#10aee2]" />
-                Interprétation & Cumul des sources
-              </CardTitle>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-3 text-lg">
+                  <span className="grid h-7 w-7 place-items-center rounded-md bg-slate-100 text-sm font-bold text-[#10aee2]">2</span>
+                  <span>
+                    Interprétation &amp; synthèse
+                    <span className="block text-xs font-normal text-slate-400">
+                      Optionnel — génère une base commune à partir de tes sources
+                    </span>
+                  </span>
+                </CardTitle>
+                <button
+                  type="button"
+                  onClick={() => setSynthesisOpen((o) => !o)}
+                  className="shrink-0 text-sm font-medium text-[#10aee2] hover:text-[#0d92be]"
+                >
+                  {synthesisOpen ? "Replier ▲" : "Déplier ▼"}
+                </button>
+              </div>
             </CardHeader>
+            {synthesisOpen && (
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -1122,13 +1144,14 @@ function DashboardContent() {
                 />
               </div>
             </CardContent>
+            )}
           </Card>
 
           <Card className="rounded-lg">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ArrowRight className="h-5 w-5 text-[#10aee2]" />
-                Paramètres simples
+              <CardTitle className="flex items-center gap-3 text-lg">
+                <span className="grid h-7 w-7 place-items-center rounded-md bg-slate-100 text-sm font-bold text-[#10aee2]">3</span>
+                Réglages
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1239,34 +1262,6 @@ function DashboardContent() {
                 </label>
               </div>
 
-              <div className="flex flex-wrap gap-3 border-t pt-6">
-                <Button
-                  type="button"
-                  onClick={generateTextOnly}
-                  disabled={isBusy}
-                  className="bg-[#1e2e3d] hover:bg-[#16222e] text-white flex-1"
-                >
-                  {isBusy && loadingLabel === "Génération des textes..." ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-4 w-4" />
-                  )}
-                  Générer Texte
-                </Button>
-                <Button
-                  type="button"
-                  onClick={generateImagesOnly}
-                  disabled={isBusy}
-                  className="bg-[#10aee2] hover:bg-[#0d92be] text-white flex-1"
-                >
-                  {isBusy && loadingLabel !== "Génération des textes..." && loadingLabel !== "Génération de la synthèse" && loadingLabel !== "" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                  )}
-                  Générer Images
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
@@ -1468,69 +1463,42 @@ function DashboardContent() {
             </CardContent>
           </Card>
         </section>
+      </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <Card className="rounded-lg">
-            <CardHeader>
-              <CardTitle className="text-base">Résumé</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Sources actives</span>
-                <strong>{sources.filter((source) => source.selected).length}</strong>
+      {/* Barre d'action sticky */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/20 bg-[#1e2e3d] text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)]">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-6">
+            <div>
+              <div className="text-xl font-bold leading-none">
+                {sources.filter((source) => source.selected).length}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Réseaux</span>
-                <strong>{selectedPlatforms.length}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Formats</span>
-                <strong>{selectedWorks.length}</strong>
-              </div>
-              <div className="flex flex-col gap-2 pt-2 border-t">
-                <Button
-                  type="button"
-                  onClick={generateTextOnly}
-                  disabled={isBusy}
-                  className="w-full bg-[#1e2e3d] hover:bg-[#16222e] text-white"
-                >
-                  {isBusy && loadingLabel === "Génération des textes..." ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-4 w-4" />
-                  )}
-                  Générer Texte
-                </Button>
-                <Button
-                  type="button"
-                  onClick={generateImagesOnly}
-                  disabled={isBusy}
-                  className="w-full bg-[#10aee2] hover:bg-[#0d92be] text-white"
-                >
-                  {isBusy && loadingLabel !== "Génération des textes..." && loadingLabel !== "Génération de la synthèse" && loadingLabel !== "" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                  )}
-                  Générer Images
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-lg border-[#10aee2]/20 bg-[#10aee2]/5">
-            <CardContent className="space-y-3 pt-6">
-              <div className="flex items-center gap-2 text-sm font-medium text-[#087aa0]">
-                <FileImage className="h-4 w-4" />
-                Direction visuelle MVP
-              </div>
-              <p className="text-sm leading-6 text-slate-600">
-                Interface neutre et moderne, avec une inspiration Vega : bleu cyan,
-                formes nettes, beaucoup d'air, et priorité aux actions utiles.
-              </p>
-            </CardContent>
-          </Card>
-        </aside>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Sources</div>
+            </div>
+            <div>
+              <div className="text-xl font-bold leading-none">{selectedPlatforms.length}</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Réseaux</div>
+            </div>
+            <div>
+              <div className="text-xl font-bold leading-none">{selectedWorks.length}</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Formats</div>
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={generateAll}
+            disabled={isBusy}
+            size="lg"
+            className="bg-gradient-to-r from-[#10aee2] to-[#3b82f6] text-white hover:opacity-90"
+          >
+            {isBusy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            Générer
+          </Button>
+        </div>
       </div>
     </main>
   );
