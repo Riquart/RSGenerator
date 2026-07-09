@@ -22,6 +22,7 @@ import {
   defaultParams,
   type Provider,
 } from "@/lib/ai/magnific-registry";
+import { useAIConfig } from "@/context/AIConfigContext";
 
 interface Slide {
   title: string;
@@ -42,9 +43,16 @@ interface Job {
   aspect: string;
   series: boolean;
   count: number;
+  describe: boolean;
   params: Record<string, string | number>;
   running: boolean;
   images: JobImage[];
+}
+
+interface DescribeOpts {
+  describe: boolean;
+  textProvider?: string;
+  textModel?: string;
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -59,12 +67,13 @@ async function generateOne(
   modelId: string,
   prompt: string,
   aspect: string,
-  params: Record<string, string | number>
+  params: Record<string, string | number>,
+  opts: DescribeOpts
 ): Promise<string> {
   const res = await fetch("/api/gen", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ modelId, prompt, aspect, params }),
+    body: JSON.stringify({ modelId, prompt, aspect, params, ...opts }),
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || "Génération impossible");
@@ -97,6 +106,7 @@ export function GenerationJobs({
   baseText: string;
   slides?: Slide[];
 }) {
+  const { config } = useAIConfig();
   const [jobs, setJobs] = useState<Job[]>([]);
   const hasSlides = Array.isArray(slides) && slides.length > 0;
 
@@ -116,6 +126,7 @@ export function GenerationJobs({
         aspect: defaultAspectFor(model),
         series: false,
         count: hasSlides ? slides!.length : 3,
+        describe: true,
         params: defaultParams(model),
         running: false,
         images: [],
@@ -153,10 +164,16 @@ export function GenerationJobs({
       images: prompts.map(() => ({ status: "pending" as const })),
     });
 
+    const opts: DescribeOpts = {
+      describe: job.describe,
+      textProvider: config.textProvider,
+      textModel: config.textModel,
+    };
+
     await Promise.all(
       prompts.map(async (p, idx) => {
         try {
-          const url = await generateOne(job.modelId, p, job.aspect, job.params);
+          const url = await generateOne(job.modelId, p, job.aspect, job.params, opts);
           setJobs((cur) =>
             cur.map((j) => {
               if (j.id !== job.id) return j;
@@ -296,6 +313,17 @@ export function GenerationJobs({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <label
+                className="flex items-center gap-2 text-sm text-slate-600"
+                title="Une IA transforme le texte en description visuelle (image moins littérale) et applique la charte graphique / DA de la marque."
+              >
+                <input
+                  type="checkbox"
+                  checked={job.describe}
+                  onChange={(e) => patchJob(job.id, { describe: e.target.checked })}
+                />
+                Description visuelle IA + DA
+              </label>
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"

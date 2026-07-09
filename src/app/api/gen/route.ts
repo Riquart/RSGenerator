@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getServerKey } from "@/lib/ai/server-keys";
+import { getServerKey, type AIProvider } from "@/lib/ai/server-keys";
 import { getModel } from "@/lib/ai/magnific-registry";
 import {
   MAGNIFIC_BASE,
@@ -9,6 +9,9 @@ import {
   extractSyncImage,
   readAsyncStatus,
 } from "@/lib/ai/magnific-client";
+import { aiManager } from "@/lib/ai/provider-manager";
+import { loadBrandIdentityServer } from "@/lib/brand-identity-server";
+import { buildBrandVisualBlock } from "@/lib/brand-identity";
 import { getClientIP } from "@/lib/get-ip";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -17,7 +20,41 @@ const genSchema = z.object({
   prompt: z.string().min(3),
   aspect: z.string(),
   params: z.record(z.any()).optional().default({}),
+  // Passe de description visuelle (rend l'image moins littérale) + charte/DA.
+  describe: z.boolean().optional().default(true),
+  textProvider: z.string().optional(),
+  textModel: z.string().optional(),
+  visualStyle: z.string().optional(),
 });
+
+// Construit le prompt image final : description visuelle IA (optionnelle) + charte/DA marque.
+async function buildImagePrompt(
+  prompt: string,
+  describe: boolean,
+  visualStyle: string | undefined,
+  textProvider: string | undefined,
+  textModel: string | undefined
+): Promise<string> {
+  const brand = loadBrandIdentityServer();
+  const visualBlock = buildBrandVisualBlock(brand); // couleurs, mood, typo, exclusions = DA
+  const styleText = [visualStyle, visualBlock].filter(Boolean).join(". ");
+
+  if (describe) {
+    try {
+      const { description } = await aiManager.generateImageDescription(
+        prompt.slice(0, 100),
+        prompt,
+        (textProvider as AIProvider) || undefined,
+        textModel,
+        styleText || undefined
+      );
+      return [description, visualBlock].filter(Boolean).join(". ");
+    } catch {
+      // fallback : texte brut + DA
+    }
+  }
+  return [prompt, visualBlock].filter(Boolean).join(visualBlock ? "\n\n" : "");
+}
 
 function errMsg(json: unknown, text: string, status: number): string {
   return (
@@ -41,11 +78,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Requête invalide", details: parsed.error.format() }, { status: 400 });
     }
 
-    const { modelId, prompt, aspect, params } = parsed.data;
+    const { modelId, prompt, aspect, params, describe, textProvider, textModel, visualStyle } = parsed.data;
     const model = getModel(modelId);
     if (!model) {
       return NextResponse.json({ error: `Modèle inconnu : ${modelId}` }, { status: 400 });
     }
+
+    // Prompt image enrichi : description visuelle IA (optionnelle) + charte/DA marque.
+    const imagePrompt = await buildImagePrompt(prompt, describe, visualStyle, textProvider, textModel);
 
     // ── OpenAI (gpt-image, synchrone) ──
     if (model.provider === "openai") {
@@ -54,7 +94,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "OPENAI_API_KEY non configurée sur le serveur." }, { status: 500 });
       }
       const quality = (params.quality as string) || "medium";
-      const body = { model: model.oaiModel, prompt, size: aspect, n: 1, quality };
+      const body = { model: model.oaiModel, prompt: imagePrompt, size: aspect, n: 1, quality };
       const res = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -83,7 +123,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "MAGNIFIC_API_KEY non configurée sur le serveur." }, { status: 500 });
     }
 
-    const body = buildBody(model, prompt, aspect, params);
+    const body = buildBody(model, imagePrompt, aspect, params);
     const res = await fetch(`${MAGNIFIC_BASE}${model.endpoint}`, {
       method: "POST",
       headers: magnificHeaders(key),
