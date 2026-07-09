@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ElementType } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -106,7 +106,7 @@ function truncate(value: string, length = 140) {
   return `${value.slice(0, length).trim()}...`;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { config } = useAIConfig();
@@ -114,6 +114,7 @@ export default function DashboardPage() {
   const [guidancePrompt, setGuidancePrompt] = useState("");
   const [synthesisText, setSynthesisText] = useState("");
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
+  const autoUrlHandledRef = useRef(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -259,6 +260,18 @@ export default function DashboardPage() {
       setLoadingLabel("");
     }
   };
+
+  // Deep link : le veille-app ouvre /dashboard?url=<encodé>. Le champ URL est
+  // déjà pré-rempli (voir useState ci-dessus) ; ici on lance le scrape une seule
+  // fois au montage pour que la source soit prête sans clic.
+  useEffect(() => {
+    if (autoUrlHandledRef.current) return;
+    const incoming = searchParams.get("url");
+    if (!incoming || !/^https?:\/\//i.test(incoming)) return;
+    autoUrlHandledRef.current = true;
+    void ingestUrl(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ingestPdf = async (file: File) => {
     setError("");
@@ -1493,5 +1506,19 @@ export default function DashboardPage() {
         </aside>
       </div>
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center bg-[#f7f9fb] text-slate-500">
+          <Loader2 className="h-6 w-6 animate-spin text-[#10aee2]" />
+        </main>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }
