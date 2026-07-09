@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ElementType } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -108,6 +108,7 @@ function truncate(value: string, length = 140) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { config } = useAIConfig();
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [guidancePrompt, setGuidancePrompt] = useState("");
@@ -140,7 +141,7 @@ export default function DashboardPage() {
     }
   };
   const [draftText, setDraftText] = useState("");
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(searchParams.get("url") ?? "");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([
     "linkedin",
     "instagram",
