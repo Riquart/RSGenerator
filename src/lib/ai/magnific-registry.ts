@@ -40,12 +40,15 @@ export interface ModelDef {
   params: ParamField[]; // champs propres au modèle (hors prompt / ratio / quantité)
 }
 
+// Sous-ensemble de ratios accepté par TOUS les modèles "named" (vérifié via l'API :
+// mystic, flux*, imagen3, seedream*, z-image). D'autres valeurs existent mais ne sont
+// pas universelles (ex: social_post_4_5 rejeté par imagen3/seedream).
 export const ASPECT_NAMED: ParamOption[] = [
   { value: "square_1_1", label: "Carré 1:1" },
-  { value: "social_post_4_5", label: "Portrait 4:5" },
+  { value: "traditional_3_4", label: "Portrait 3:4" },
   { value: "social_story_9_16", label: "Story 9:16" },
   { value: "widescreen_16_9", label: "Paysage 16:9" },
-  { value: "classic_4_3", label: "Classique 4:3" },
+  { value: "classic_4_3", label: "Paysage 4:3" },
 ];
 
 export const ASPECT_RATIO: ParamOption[] = [
@@ -61,7 +64,7 @@ export function aspectOptionsFor(model: ModelDef): ParamOption[] {
 }
 
 export function defaultAspectFor(model: ModelDef): string {
-  return model.aspectVocab === "ratio" ? "4:5" : "social_post_4_5";
+  return model.aspectVocab === "ratio" ? "4:5" : "traditional_3_4";
 }
 
 // Helper interne pour les modèles "génériques" (prompt + ratio, vocab nommé, sans params).
@@ -134,16 +137,6 @@ export const MODELS: ModelDef[] = [
 
   // ── Autres ──
   simple("z-image", "Z-Image", "Autres", "/v1/ai/text-to-image/z-image"),
-  {
-    id: "runway",
-    label: "Runway",
-    family: "Autres",
-    mode: "async",
-    endpoint: "/v1/ai/text-to-image/runway",
-    aspectKey: "aspect_ratio",
-    aspectVocab: "named",
-    params: [],
-  },
 
   // ── Freepik Classic (synchrone, rapide) ──
   {
