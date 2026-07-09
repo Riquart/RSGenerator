@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/select";
 import {
   MODELS,
-  ASPECT_OPTIONS,
-  DEFAULT_ASPECT,
+  aspectOptionsFor,
+  defaultAspectFor,
   getModel,
   defaultParams,
 } from "@/lib/ai/magnific-registry";
@@ -108,7 +108,7 @@ export function GenerationJobs({
         id: crypto.randomUUID(),
         modelId: model.id,
         prompt: baseText.slice(0, 400),
-        aspect: DEFAULT_ASPECT,
+        aspect: defaultAspectFor(model),
         series: false,
         count: hasSlides ? slides!.length : 3,
         params: defaultParams(model),
@@ -123,7 +123,7 @@ export function GenerationJobs({
   const changeModel = (id: string, modelId: string) => {
     const model = getModel(modelId);
     if (!model) return;
-    patchJob(id, { modelId, params: defaultParams(model) });
+    patchJob(id, { modelId, params: defaultParams(model), aspect: defaultAspectFor(model) });
   };
 
   const launch = async (job: Job) => {
@@ -208,7 +208,7 @@ export function GenerationJobs({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ASPECT_OPTIONS.map((a) => (
+                    {aspectOptionsFor(model).map((a) => (
                       <SelectItem key={a.value} value={a.value}>
                         {a.label}
                       </SelectItem>
