@@ -1,7 +1,8 @@
 // Client bas niveau Magnific/Freepik. Utilisé par /api/gen et /api/gen/status.
 import type { ModelDef } from "./magnific-registry";
 
-export const MAGNIFIC_BASE = "https://api.freepik.com";
+// Host officiel de l'API Magnific (même que l'intégration vidéo existante).
+export const MAGNIFIC_BASE = "https://api.magnific.com";
 
 // Les docs Magnific mentionnent `x-magnific-api-key`, l'API Freepik `x-freepik-api-key`.
 // On envoie les deux avec la même clé pour couvrir les deux conventions.
