@@ -9,7 +9,6 @@ import {
   extractSyncImage,
   readAsyncStatus,
 } from "@/lib/ai/magnific-client";
-import { LEONARDO_BASE, leonardoHeaders, parseWH, readLeonardoCreate } from "@/lib/ai/leonardo-client";
 import { getClientIP } from "@/lib/get-ip";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -48,17 +47,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Modèle inconnu : ${modelId}` }, { status: 400 });
     }
 
-    // ── Leonardo ──
-    if (model.provider === "leonardo") {
-      const key = getServerKey("leonardo");
+    // ── OpenAI (gpt-image, synchrone) ──
+    if (model.provider === "openai") {
+      const key = getServerKey("openai");
       if (!key) {
-        return NextResponse.json({ error: "LEONARDO_API_KEY non configurée sur le serveur." }, { status: 500 });
+        return NextResponse.json({ error: "OPENAI_API_KEY non configurée sur le serveur." }, { status: 500 });
       }
-      const { width, height } = parseWH(aspect);
-      const body = { prompt, modelId: model.leoModelId, width, height, num_images: 1 };
-      const res = await fetch(`${LEONARDO_BASE}/generations`, {
+      const quality = (params.quality as string) || "medium";
+      const body = { model: model.oaiModel, prompt, size: aspect, n: 1, quality };
+      const res = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
-        headers: leonardoHeaders(key),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify(body),
       });
       const text = await res.text();
@@ -67,13 +66,15 @@ export async function POST(request: NextRequest) {
         json = text ? JSON.parse(text) : {};
       } catch {}
       if (!res.ok) {
-        return NextResponse.json({ error: `Leonardo (${model.label}) : ${errMsg(json, text, res.status)}` }, { status: 502 });
+        const msg = (json as { error?: { message?: string } })?.error?.message || errMsg(json, text, res.status);
+        return NextResponse.json({ error: `OpenAI (${model.label}) : ${msg}` }, { status: 502 });
       }
-      const genId = readLeonardoCreate(json);
-      if (!genId) {
-        return NextResponse.json({ error: `Leonardo (${model.label}) : generationId manquant.` }, { status: 502 });
+      const first = (json as { data?: { b64_json?: string; url?: string }[] })?.data?.[0];
+      const imageUrl = first?.url || (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : undefined);
+      if (!imageUrl) {
+        return NextResponse.json({ error: `OpenAI (${model.label}) : aucune image renvoyée.` }, { status: 502 });
       }
-      return NextResponse.json({ mode: "async", taskId: genId, status: "CREATED" });
+      return NextResponse.json({ mode: "sync", imageUrl });
     }
 
     // ── Magnific ──

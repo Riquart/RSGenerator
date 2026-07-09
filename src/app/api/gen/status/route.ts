@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerKey } from "@/lib/ai/server-keys";
 import { getModel } from "@/lib/ai/magnific-registry";
 import { MAGNIFIC_BASE, magnificHeaders, readAsyncStatus } from "@/lib/ai/magnific-client";
-import { LEONARDO_BASE, leonardoHeaders, readLeonardoStatus } from "@/lib/ai/leonardo-client";
 
 // Poll du statut d'une tâche async. Pas de rate-limit : appelé en boucle par le
 // client (déjà protégé par l'auth middleware).
@@ -20,29 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Modèle inconnu : ${modelId}` }, { status: 400 });
     }
 
-    // ── Leonardo ──
-    if (model.provider === "leonardo") {
-      const key = getServerKey("leonardo");
-      if (!key) {
-        return NextResponse.json({ status: "FAILED", error: "LEONARDO_API_KEY non configurée." }, { status: 200 });
-      }
-      const res = await fetch(`${LEONARDO_BASE}/generations/${taskId}`, {
-        method: "GET",
-        headers: leonardoHeaders(key),
-      });
-      const text = await res.text();
-      let json: unknown = {};
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {}
-      if (!res.ok) {
-        return NextResponse.json({ status: "FAILED", error: `Leonardo : HTTP ${res.status}` }, { status: 200 });
-      }
-      const { status, imageUrl } = readLeonardoStatus(json);
-      return NextResponse.json({ status, imageUrl });
-    }
-
-    // ── Magnific ──
+    // Magnific (les modèles OpenAI sont synchrones : jamais pollés ici).
     const key = getServerKey("magnific");
     if (!key) {
       return NextResponse.json({ status: "FAILED", error: "MAGNIFIC_API_KEY non configurée." }, { status: 200 });

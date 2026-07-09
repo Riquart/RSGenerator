@@ -14,9 +14,9 @@
 //  - 'ratio' : 1:1, 4:5, 9:16, ...                (Magnific: Nano Banana / Gemini)
 //  - 'wh'    : "832x1216" (largeurxhauteur)         (Leonardo)
 
-export type Provider = "magnific" | "leonardo";
+export type Provider = "magnific" | "openai";
 export type GenMode = "sync" | "async";
-export type AspectVocab = "named" | "ratio" | "wh";
+export type AspectVocab = "named" | "ratio" | "size";
 
 export interface ParamOption {
   value: string;
@@ -43,12 +43,12 @@ export interface ModelDef {
   aspectKey: "aspect_ratio" | "image.size";
   aspectVocab: AspectVocab;
   params: ParamField[];
-  leoModelId?: string; // UUID du modèle Leonardo (provider 'leonardo')
+  oaiModel?: string; // id du modèle OpenAI (provider 'openai'), ex 'gpt-image-2'
 }
 
 export const PROVIDERS: { id: Provider; label: string }[] = [
   { id: "magnific", label: "Magnific" },
-  { id: "leonardo", label: "Leonardo" },
+  { id: "openai", label: "OpenAI" },
 ];
 
 export const ASPECT_NAMED: ParamOption[] = [
@@ -67,23 +67,22 @@ export const ASPECT_RATIO: ParamOption[] = [
   { value: "4:3", label: "Paysage 4:3" },
 ];
 
-export const ASPECT_WH: ParamOption[] = [
+// Tailles supportées par gpt-image (OpenAI) : passées telles quelles dans `size`.
+export const ASPECT_SIZE: ParamOption[] = [
   { value: "1024x1024", label: "Carré 1:1" },
-  { value: "832x1216", label: "Portrait 3:4" },
-  { value: "768x1344", label: "Story 9:16" },
-  { value: "1344x768", label: "Paysage 16:9" },
-  { value: "1216x832", label: "Paysage 4:3" },
+  { value: "1024x1536", label: "Portrait 2:3" },
+  { value: "1536x1024", label: "Paysage 3:2" },
 ];
 
 export function aspectOptionsFor(model: ModelDef): ParamOption[] {
   if (model.aspectVocab === "ratio") return ASPECT_RATIO;
-  if (model.aspectVocab === "wh") return ASPECT_WH;
+  if (model.aspectVocab === "size") return ASPECT_SIZE;
   return ASPECT_NAMED;
 }
 
 export function defaultAspectFor(model: ModelDef): string {
   if (model.aspectVocab === "ratio") return "4:5";
-  if (model.aspectVocab === "wh") return "832x1216";
+  if (model.aspectVocab === "size") return "1024x1024";
   return "traditional_3_4";
 }
 
@@ -94,9 +93,32 @@ function mg(id: string, label: string, family: string, endpoint: string): ModelD
 function mgRatio(id: string, label: string, family: string, endpoint: string): ModelDef {
   return { id, label, family, provider: "magnific", mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "ratio", params: [] };
 }
-// ── Helper Leonardo ──
-function leo(id: string, label: string, leoModelId: string): ModelDef {
-  return { id, label, family: "Leonardo", provider: "leonardo", mode: "async", endpoint: "", aspectKey: "aspect_ratio", aspectVocab: "wh", params: [], leoModelId };
+// ── Helper OpenAI (gpt-image, synchrone) ──
+function oai(id: string, label: string, oaiModel: string): ModelDef {
+  return {
+    id,
+    label,
+    family: "OpenAI",
+    provider: "openai",
+    mode: "sync",
+    endpoint: "",
+    aspectKey: "aspect_ratio",
+    aspectVocab: "size",
+    oaiModel,
+    params: [
+      {
+        key: "quality",
+        label: "Qualité",
+        type: "select",
+        default: "medium",
+        options: [
+          { value: "low", label: "Basse (rapide)" },
+          { value: "medium", label: "Moyenne" },
+          { value: "high", label: "Haute" },
+        ],
+      },
+    ],
+  };
 }
 
 export const MODELS: ModelDef[] = [
@@ -189,17 +211,9 @@ export const MODELS: ModelDef[] = [
     ],
   },
 
-  // ── Leonardo (nécessite LEONARDO_API_KEY) ──
-  // UUID récupérés en direct via /platformModels du compte.
-  leo("leo-lucid-origin", "Lucid Origin", "7b592283-e8a7-4c5a-9ba6-d18c31f258b9"),
-  leo("leo-lucid-realism", "Lucid Realism", "05ce0082-2d80-4a2d-8653-4d1c85e2418e"),
-  leo("leo-phoenix-1", "Phoenix 1.0", "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3"),
-  leo("leo-kino-xl", "Kino XL (cinéma)", "aa77f04e-3eec-4034-9c07-d0f619684628"),
-  leo("leo-vision-xl", "Vision XL (photo)", "5c232a9e-9061-4777-980a-ddc8e65647c6"),
-  leo("leo-anime-xl", "Anime XL", "e71a1c2f-4f80-4800-934f-2c68979d8cc8"),
-  leo("leo-lightning-xl", "Lightning XL (rapide)", "b24e16ff-06e3-43eb-8d33-4416c2d75876"),
-  leo("leo-flux-dev", "Flux Dev", "b2614463-296c-462a-9586-aafdb8f00e36"),
-  leo("leo-albedo-xl", "AlbedoBase XL", "2067ae52-33fd-4a82-bb92-c2c55e7d2786"),
+  // ── OpenAI (utilise OPENAI_API_KEY — la même clé que le chat LLM) ──
+  oai("gpt-image-2", "GPT Image 2", "gpt-image-2"),
+  oai("gpt-image-1", "GPT Image 1", "gpt-image-1"),
 ];
 
 export function getModel(id: string): ModelDef | undefined {
