@@ -190,9 +190,16 @@ export const MODELS: ModelDef[] = [
   },
 
   // ── Leonardo (nécessite LEONARDO_API_KEY) ──
-  // UUID Phoenix confirmé depuis la doc getting-started. D'autres modèles à ajouter
-  // après validation de la clé (via l'endpoint /platformModels).
-  leo("leo-phoenix", "Phoenix 1.0", "7b592283-e8a7-4c5a-9ba6-d18c31f258b9"),
+  // UUID récupérés en direct via /platformModels du compte.
+  leo("leo-lucid-origin", "Lucid Origin", "7b592283-e8a7-4c5a-9ba6-d18c31f258b9"),
+  leo("leo-lucid-realism", "Lucid Realism", "05ce0082-2d80-4a2d-8653-4d1c85e2418e"),
+  leo("leo-phoenix-1", "Phoenix 1.0", "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3"),
+  leo("leo-kino-xl", "Kino XL (cinéma)", "aa77f04e-3eec-4034-9c07-d0f619684628"),
+  leo("leo-vision-xl", "Vision XL (photo)", "5c232a9e-9061-4777-980a-ddc8e65647c6"),
+  leo("leo-anime-xl", "Anime XL", "e71a1c2f-4f80-4800-934f-2c68979d8cc8"),
+  leo("leo-lightning-xl", "Lightning XL (rapide)", "b24e16ff-06e3-43eb-8d33-4416c2d75876"),
+  leo("leo-flux-dev", "Flux Dev", "b2614463-296c-462a-9586-aafdb8f00e36"),
+  leo("leo-albedo-xl", "AlbedoBase XL", "2067ae52-33fd-4a82-bb92-c2c55e7d2786"),
 ];
 
 export function getModel(id: string): ModelDef | undefined {
