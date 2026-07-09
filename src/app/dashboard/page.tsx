@@ -43,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAIConfig } from "@/context/AIConfigContext";
 import type { CarouselPlatform, SocialPlatform } from "@/lib/ai/provider-manager";
+import { GenerationJobs } from "@/components/generation/generation-jobs";
 
 type SourceKind = "text" | "url" | "pdf" | "image";
 type WorkType = "post" | "carousel" | "image" | "video" | "article";
@@ -1427,6 +1428,16 @@ function DashboardContent() {
                             );
                           })}
                         </div>
+                      )}
+
+                      {(result.type === "post" ||
+                        result.type === "article" ||
+                        result.type === "carousel") && (
+                        <GenerationJobs
+                          targetId={result.id}
+                          baseText={getResultText(result)}
+                          slides={result.slides}
+                        />
                       )}
                     </div>
                   ))}
