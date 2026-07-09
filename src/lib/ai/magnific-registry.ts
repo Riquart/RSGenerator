@@ -1,18 +1,22 @@
-// Registre curé des modèles image Magnific/Freepik.
-// Source de vérité partagée UI (formulaires de params) + backend (routage + body).
-// Spec: docs/generation-jobs.md — endpoints vérifiés en direct avec la clé de prod.
+// Registre curé des modèles image, multi-provider (Magnific/Freepik + Leonardo).
+// Source de vérité partagée UI (formulaires) + backend (routage + body).
+// Spec: docs/generation-jobs.md — endpoints Magnific sondés en direct avec la clé de prod.
 //
-// Deux modes d'appel Magnific (base https://api.magnific.com) :
-//  - 'sync'  : POST renvoie directement { data: [{ base64 }] }
-//  - 'async' : POST renvoie { data: { task_id, status } } ; on poll GET <endpoint>/<task_id>
-//              jusqu'à data.status === 'COMPLETED' → data.generated[] (URLs)
+// Magnific (base https://api.magnific.com) :
+//  - 'sync'  : POST renvoie { data: [{ base64 }] }
+//  - 'async' : POST renvoie { data: { task_id, status } } ; poll GET <endpoint>/<task_id>
+// Leonardo (base https://cloud.leonardo.ai/api/rest/v1) :
+//  - async : POST /generations renvoie { sdGenerationJob: { generationId } } ;
+//            poll GET /generations/{id} → generations_by_pk.generated_images[].url
 //
-// Deux vocabulaires de ratio selon le modèle :
-//  - 'named' : square_1_1, social_post_4_5, ...  (Mystic, Flux, Seedream, Classic, Imagen)
-//  - 'ratio' : 1:1, 4:5, 9:16, ...               (Nano Banana / Gemini)
+// Vocabulaires de ratio :
+//  - 'named' : square_1_1, traditional_3_4, ...   (Magnific: Mystic, Flux, Seedream, Imagen)
+//  - 'ratio' : 1:1, 4:5, 9:16, ...                (Magnific: Nano Banana / Gemini)
+//  - 'wh'    : "832x1216" (largeurxhauteur)         (Leonardo)
 
+export type Provider = "magnific" | "leonardo";
 export type GenMode = "sync" | "async";
-export type AspectVocab = "named" | "ratio";
+export type AspectVocab = "named" | "ratio" | "wh";
 
 export interface ParamOption {
   value: string;
@@ -33,16 +37,20 @@ export interface ModelDef {
   id: string;
   label: string;
   family: string;
+  provider: Provider;
   mode: GenMode;
-  endpoint: string; // chemin sous https://api.magnific.com
-  aspectKey: "aspect_ratio" | "image.size"; // où placer le ratio dans le body
+  endpoint: string; // Magnific: chemin API ; Leonardo: non utilisé
+  aspectKey: "aspect_ratio" | "image.size";
   aspectVocab: AspectVocab;
-  params: ParamField[]; // champs propres au modèle (hors prompt / ratio / quantité)
+  params: ParamField[];
+  leoModelId?: string; // UUID du modèle Leonardo (provider 'leonardo')
 }
 
-// Sous-ensemble de ratios accepté par TOUS les modèles "named" (vérifié via l'API :
-// mystic, flux*, imagen3, seedream*, z-image). D'autres valeurs existent mais ne sont
-// pas universelles (ex: social_post_4_5 rejeté par imagen3/seedream).
+export const PROVIDERS: { id: Provider; label: string }[] = [
+  { id: "magnific", label: "Magnific" },
+  { id: "leonardo", label: "Leonardo" },
+];
+
 export const ASPECT_NAMED: ParamOption[] = [
   { value: "square_1_1", label: "Carré 1:1" },
   { value: "traditional_3_4", label: "Portrait 3:4" },
@@ -56,25 +64,39 @@ export const ASPECT_RATIO: ParamOption[] = [
   { value: "4:5", label: "Portrait 4:5" },
   { value: "9:16", label: "Story 9:16" },
   { value: "16:9", label: "Paysage 16:9" },
-  { value: "4:3", label: "Classique 4:3" },
+  { value: "4:3", label: "Paysage 4:3" },
+];
+
+export const ASPECT_WH: ParamOption[] = [
+  { value: "1024x1024", label: "Carré 1:1" },
+  { value: "832x1216", label: "Portrait 3:4" },
+  { value: "768x1344", label: "Story 9:16" },
+  { value: "1344x768", label: "Paysage 16:9" },
+  { value: "1216x832", label: "Paysage 4:3" },
 ];
 
 export function aspectOptionsFor(model: ModelDef): ParamOption[] {
-  return model.aspectVocab === "ratio" ? ASPECT_RATIO : ASPECT_NAMED;
+  if (model.aspectVocab === "ratio") return ASPECT_RATIO;
+  if (model.aspectVocab === "wh") return ASPECT_WH;
+  return ASPECT_NAMED;
 }
 
 export function defaultAspectFor(model: ModelDef): string {
-  return model.aspectVocab === "ratio" ? "4:5" : "traditional_3_4";
+  if (model.aspectVocab === "ratio") return "4:5";
+  if (model.aspectVocab === "wh") return "832x1216";
+  return "traditional_3_4";
 }
 
-// Helper interne pour les modèles "génériques" (prompt + ratio, vocab nommé, sans params).
-function simple(id: string, label: string, family: string, endpoint: string): ModelDef {
-  return { id, label, family, mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "named", params: [] };
+// ── Helpers Magnific ──
+function mg(id: string, label: string, family: string, endpoint: string): ModelDef {
+  return { id, label, family, provider: "magnific", mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "named", params: [] };
 }
-
-// Idem mais avec le vocabulaire de ratio 'ratio' (Nano Banana / Gemini).
-function simpleRatio(id: string, label: string, family: string, endpoint: string): ModelDef {
-  return { id, label, family, mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "ratio", params: [] };
+function mgRatio(id: string, label: string, family: string, endpoint: string): ModelDef {
+  return { id, label, family, provider: "magnific", mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "ratio", params: [] };
+}
+// ── Helper Leonardo ──
+function leo(id: string, label: string, leoModelId: string): ModelDef {
+  return { id, label, family: "Leonardo", provider: "leonardo", mode: "async", endpoint: "", aspectKey: "aspect_ratio", aspectVocab: "wh", params: [], leoModelId };
 }
 
 export const MODELS: ModelDef[] = [
@@ -83,6 +105,7 @@ export const MODELS: ModelDef[] = [
     id: "mystic",
     label: "Mystic",
     family: "Magnific",
+    provider: "magnific",
     mode: "async",
     endpoint: "/v1/ai/mystic",
     aspectKey: "aspect_ratio",
@@ -117,32 +140,33 @@ export const MODELS: ModelDef[] = [
     ],
   },
 
-  // ── Google (Gemini / Nano Banana / Imagen) ──
-  simpleRatio("nano-banana-pro", "Nano Banana Pro (Gemini)", "Google", "/v1/ai/text-to-image/nano-banana-pro"),
-  simpleRatio("nano-banana-pro-flash", "Nano Banana Pro Flash", "Google", "/v1/ai/text-to-image/nano-banana-pro-flash"),
-  simple("imagen3", "Imagen 3", "Google", "/v1/ai/text-to-image/imagen3"),
+  // Google (Gemini / Nano Banana / Imagen)
+  mgRatio("nano-banana-pro", "Nano Banana Pro (Gemini)", "Google", "/v1/ai/text-to-image/nano-banana-pro"),
+  mgRatio("nano-banana-pro-flash", "Nano Banana Pro Flash", "Google", "/v1/ai/text-to-image/nano-banana-pro-flash"),
+  mg("imagen3", "Imagen 3", "Google", "/v1/ai/text-to-image/imagen3"),
 
-  // ── Flux ──
-  simple("flux-2-pro", "Flux 2 Pro", "Flux", "/v1/ai/text-to-image/flux-2-pro"),
-  simple("flux-2-turbo", "Flux 2 Turbo", "Flux", "/v1/ai/text-to-image/flux-2-turbo"),
-  simple("flux-2-klein", "Flux 2 Klein", "Flux", "/v1/ai/text-to-image/flux-2-klein"),
-  simple("flux-pro-v1-1", "Flux Pro v1.1", "Flux", "/v1/ai/text-to-image/flux-pro-v1-1"),
-  simple("flux-dev", "Flux Dev", "Flux", "/v1/ai/text-to-image/flux-dev"),
-  simple("hyperflux", "HyperFlux", "Flux", "/v1/ai/text-to-image/hyperflux"),
+  // Flux
+  mg("flux-2-pro", "Flux 2 Pro", "Flux", "/v1/ai/text-to-image/flux-2-pro"),
+  mg("flux-2-turbo", "Flux 2 Turbo", "Flux", "/v1/ai/text-to-image/flux-2-turbo"),
+  mg("flux-2-klein", "Flux 2 Klein", "Flux", "/v1/ai/text-to-image/flux-2-klein"),
+  mg("flux-pro-v1-1", "Flux Pro v1.1", "Flux", "/v1/ai/text-to-image/flux-pro-v1-1"),
+  mg("flux-dev", "Flux Dev", "Flux", "/v1/ai/text-to-image/flux-dev"),
+  mg("hyperflux", "HyperFlux", "Flux", "/v1/ai/text-to-image/hyperflux"),
 
-  // ── Seedream ──
-  simple("seedream-v4", "Seedream V4", "Seedream", "/v1/ai/text-to-image/seedream-v4"),
-  simple("seedream-v4-5", "Seedream V4.5", "Seedream", "/v1/ai/text-to-image/seedream-v4-5"),
-  simple("seedream-v5-lite", "Seedream V5 Lite", "Seedream", "/v1/ai/text-to-image/seedream-v5-lite"),
+  // Seedream
+  mg("seedream-v4", "Seedream V4", "Seedream", "/v1/ai/text-to-image/seedream-v4"),
+  mg("seedream-v4-5", "Seedream V4.5", "Seedream", "/v1/ai/text-to-image/seedream-v4-5"),
+  mg("seedream-v5-lite", "Seedream V5 Lite", "Seedream", "/v1/ai/text-to-image/seedream-v5-lite"),
 
-  // ── Autres ──
-  simple("z-image", "Z-Image", "Autres", "/v1/ai/text-to-image/z-image"),
+  // Autres
+  mg("z-image", "Z-Image", "Autres", "/v1/ai/text-to-image/z-image"),
 
-  // ── Freepik Classic (synchrone, rapide) ──
+  // Freepik Classic (synchrone, rapide)
   {
     id: "classic",
     label: "Classic (rapide)",
     family: "Freepik",
+    provider: "magnific",
     mode: "sync",
     endpoint: "/v1/ai/text-to-image",
     aspectKey: "image.size",
@@ -164,10 +188,19 @@ export const MODELS: ModelDef[] = [
       { key: "guidance_scale", label: "Guidance", type: "number", default: 1, min: 0, max: 2 },
     ],
   },
+
+  // ── Leonardo (nécessite LEONARDO_API_KEY) ──
+  // UUID Phoenix confirmé depuis la doc getting-started. D'autres modèles à ajouter
+  // après validation de la clé (via l'endpoint /platformModels).
+  leo("leo-phoenix", "Phoenix 1.0", "7b592283-e8a7-4c5a-9ba6-d18c31f258b9"),
 ];
 
 export function getModel(id: string): ModelDef | undefined {
   return MODELS.find((m) => m.id === id);
+}
+
+export function modelsByProvider(provider: Provider): ModelDef[] {
+  return MODELS.filter((m) => m.provider === provider);
 }
 
 // Valeurs de params par défaut pour un modèle.

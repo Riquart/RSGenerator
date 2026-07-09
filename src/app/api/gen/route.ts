@@ -9,6 +9,7 @@ import {
   extractSyncImage,
   readAsyncStatus,
 } from "@/lib/ai/magnific-client";
+import { LEONARDO_BASE, leonardoHeaders, parseWH, readLeonardoCreate } from "@/lib/ai/leonardo-client";
 import { getClientIP } from "@/lib/get-ip";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -18,6 +19,15 @@ const genSchema = z.object({
   aspect: z.string(),
   params: z.record(z.any()).optional().default({}),
 });
+
+function errMsg(json: unknown, text: string, status: number): string {
+  return (
+    (json as { message?: string; error?: string })?.message ||
+    (json as { error?: string })?.error ||
+    text ||
+    `HTTP ${status}`
+  );
+}
 
 // Crée une génération : renvoie l'image directement (sync) ou un task_id à poller (async).
 export async function POST(request: NextRequest) {
@@ -38,6 +48,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Modèle inconnu : ${modelId}` }, { status: 400 });
     }
 
+    // ── Leonardo ──
+    if (model.provider === "leonardo") {
+      const key = getServerKey("leonardo");
+      if (!key) {
+        return NextResponse.json({ error: "LEONARDO_API_KEY non configurée sur le serveur." }, { status: 500 });
+      }
+      const { width, height } = parseWH(aspect);
+      const body = { prompt, modelId: model.leoModelId, width, height, num_images: 1 };
+      const res = await fetch(`${LEONARDO_BASE}/generations`, {
+        method: "POST",
+        headers: leonardoHeaders(key),
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let json: unknown = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {}
+      if (!res.ok) {
+        return NextResponse.json({ error: `Leonardo (${model.label}) : ${errMsg(json, text, res.status)}` }, { status: 502 });
+      }
+      const genId = readLeonardoCreate(json);
+      if (!genId) {
+        return NextResponse.json({ error: `Leonardo (${model.label}) : generationId manquant.` }, { status: 502 });
+      }
+      return NextResponse.json({ mode: "async", taskId: genId, status: "CREATED" });
+    }
+
+    // ── Magnific ──
     const key = getServerKey("magnific");
     if (!key) {
       return NextResponse.json({ error: "MAGNIFIC_API_KEY non configurée sur le serveur." }, { status: 500 });
@@ -54,17 +93,10 @@ export async function POST(request: NextRequest) {
     let json: unknown = {};
     try {
       json = text ? JSON.parse(text) : {};
-    } catch {
-      // réponse non-JSON
-    }
+    } catch {}
 
     if (!res.ok) {
-      const msg =
-        (json as { message?: string; error?: string })?.message ||
-        (json as { error?: string })?.error ||
-        text ||
-        `HTTP ${res.status}`;
-      return NextResponse.json({ error: `Magnific (${model.label}) : ${msg}` }, { status: 502 });
+      return NextResponse.json({ error: `Magnific (${model.label}) : ${errMsg(json, text, res.status)}` }, { status: 502 });
     }
 
     if (model.mode === "sync") {
@@ -75,7 +107,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ mode: "sync", imageUrl });
     }
 
-    // async
     const { taskId, status } = readAsyncStatus(json);
     if (!taskId) {
       return NextResponse.json({ error: `Magnific (${model.label}) : task_id manquant.` }, { status: 502 });

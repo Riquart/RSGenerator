@@ -1273,6 +1273,22 @@ function DashboardContent() {
           <Card className="rounded-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
+                <ImageIcon className="h-5 w-5 text-[#10aee2]" />
+                Générateur d'images (par modèle)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-500">
+                Génère des visuels avec le modèle de ton choix, sans dépendre d'un post.
+                Chaque « + Image(s) » ouvre une carte de tâche.
+              </p>
+              <GenerationJobs targetId="standalone" baseText={synthesisText} />
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Sparkles className="h-5 w-5 text-[#10aee2]" />
                 Résultats
               </CardTitle>

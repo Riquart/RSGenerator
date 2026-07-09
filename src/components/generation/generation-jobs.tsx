@@ -14,11 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  MODELS,
+  PROVIDERS,
+  modelsByProvider,
   aspectOptionsFor,
   defaultAspectFor,
   getModel,
   defaultParams,
+  type Provider,
 } from "@/lib/ai/magnific-registry";
 
 interface Slide {
@@ -34,6 +36,7 @@ interface JobImage {
 
 interface Job {
   id: string;
+  provider: Provider;
   modelId: string;
   prompt: string;
   aspect: string;
@@ -101,11 +104,13 @@ export function GenerationJobs({
     setJobs((cur) => cur.map((j) => (j.id === id ? { ...j, ...patch } : j)));
 
   const addJob = () => {
-    const model = MODELS[0];
+    const provider: Provider = "magnific";
+    const model = modelsByProvider(provider)[0];
     setJobs((cur) => [
       ...cur,
       {
         id: crypto.randomUUID(),
+        provider,
         modelId: model.id,
         prompt: baseText.slice(0, 400),
         aspect: defaultAspectFor(model),
@@ -119,6 +124,12 @@ export function GenerationJobs({
   };
 
   const removeJob = (id: string) => setJobs((cur) => cur.filter((j) => j.id !== id));
+
+  const changeProvider = (id: string, provider: Provider) => {
+    const model = modelsByProvider(provider)[0];
+    if (!model) return;
+    patchJob(id, { provider, modelId: model.id, params: defaultParams(model), aspect: defaultAspectFor(model) });
+  };
 
   const changeModel = (id: string, modelId: string) => {
     const model = getModel(modelId);
@@ -173,7 +184,7 @@ export function GenerationJobs({
   return (
     <div className="mt-4 space-y-3 border-t pt-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">Visuels (Magnific)</span>
+        <span className="text-sm font-medium text-slate-700">Visuels</span>
         <Button variant="outline" size="sm" onClick={addJob} className="text-[#10aee2] border-[#10aee2]/30">
           <ImagePlus className="mr-1 h-4 w-4" />
           + Image(s)
@@ -185,6 +196,26 @@ export function GenerationJobs({
         return (
           <div key={job.id} className="rounded-lg border bg-slate-50 p-3 space-y-3">
             <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Provider</Label>
+                <div className="flex overflow-hidden rounded-md border">
+                  {PROVIDERS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => changeProvider(job.id, p.id)}
+                      className={`px-3 py-1.5 text-sm transition ${
+                        job.provider === p.id
+                          ? "bg-[#10aee2] text-white"
+                          : "bg-white text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="min-w-[180px] space-y-1">
                 <Label className="text-xs">Modèle</Label>
                 <Select value={job.modelId} onValueChange={(v) => changeModel(job.id, v)}>
@@ -192,7 +223,7 @@ export function GenerationJobs({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MODELS.map((m) => (
+                    {modelsByProvider(job.provider).map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         {m.family} · {m.label}
                       </SelectItem>
