@@ -6,13 +6,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
-  ArrowRight,
   Briefcase,
   Camera,
   Check,
   Copy,
-  ExternalLink,
-  FileImage,
   FileText,
   ImageIcon,
   Layers3,
@@ -23,7 +20,6 @@ import {
   PlaySquare,
   Settings,
   Sparkles,
-  Upload,
   X,
   LogOut,
 } from "lucide-react";
@@ -114,7 +110,6 @@ function DashboardContent() {
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [guidancePrompt, setGuidancePrompt] = useState("");
   const [synthesisText, setSynthesisText] = useState("");
-  const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
   const autoUrlHandledRef = useRef(false);
 
   useEffect(() => {
@@ -380,87 +375,6 @@ function DashboardContent() {
     };
   };
 
-  const generateImageResult = async (
-    platform: Platform,
-    sourceContent: string
-  ): Promise<GeneratedItem> => {
-    const post = await generatePost(platform, sourceContent);
-    const res = await fetch("/api/ai/image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        networkPost: post.text || sourceContent.slice(0, 800),
-        sourceContent,
-        platform,
-        provider: config.imageProvider,
-        modelId: config.imageModel,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "Génération image impossible");
-    return {
-      id: makeId(),
-      type: "image",
-      platform,
-      title: `Image ${PLATFORM_OPTIONS.find((item) => item.id === platform)?.label}`,
-      text: post.text,
-      imageUrl: data.imageUrl,
-    };
-  };
-
-  const generateCarousel = async (
-    platform: Platform,
-    sourceContent: string
-  ): Promise<GeneratedItem> => {
-    const res = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "carousel_script",
-        sourceContent: `${sourceContent}\n\nNombre de slides souhaité : ${slideCount}.`,
-        platform: platformToCarousel(platform),
-        provider: config.textProvider,
-        model: config.textModel,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "Génération carrousel impossible");
-
-    const targetCount = Number(slideCount);
-    const slides = (data.slides || []).slice(0, targetCount);
-    setLoadingLabel(`Images carrousel 1-${slides.length}/${slides.length}`);
-    const slidesWithImages = await Promise.all(
-      slides.map(async (slide: { title?: string; text?: string }, index: number) => {
-      const imageRes = await fetch("/api/ai/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          networkPost: `${slide.title}\n${slide.text}`,
-          sourceContent,
-          platform,
-          provider: config.imageProvider,
-          modelId: config.imageModel,
-        }),
-      });
-      const imageData = await imageRes.json();
-
-      return {
-        title: String(slide.title || `Slide ${index + 1}`),
-        text: String(slide.text || ""),
-        imageUrl: imageData.imageUrl,
-      };
-      })
-    );
-
-    return {
-      id: makeId(),
-      type: "carousel",
-      platform,
-      title: data.title || `Carrousel ${platform}`,
-      slides: slidesWithImages,
-    };
-  };
-
   const generateArticle = async (sourceContent: string): Promise<GeneratedItem> => {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
@@ -671,223 +585,6 @@ function DashboardContent() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "La génération de texte a échoué");
-    } finally {
-      setLoadingLabel("");
-    }
-  };
-
-  const generateImagesOnly = async () => {
-    if (results.length === 0) {
-      await generateAll();
-      return;
-    }
-
-    setError("");
-    const sourceContent = getGenerationSourceContent();
-
-    try {
-      const promises = results.map(async (result) => {
-        if (result.type === "image") {
-          setLoadingImages((curr) => ({ ...curr, [result.id]: true }));
-          try {
-            const res = await fetch("/api/ai/image", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                networkPost: result.text || sourceContent.slice(0, 800),
-                sourceContent,
-                platform: result.platform || "linkedin",
-                provider: config.imageProvider,
-                modelId: config.imageModel,
-              }),
-            });
-            const data = await res.json();
-            if (!res.ok || data.error) throw new Error(data.error || "Génération image impossible");
-            
-            setResults((currResults) =>
-              currResults.map((r) =>
-                r.id === result.id ? { ...r, imageUrl: data.imageUrl } : r
-              )
-            );
-          } catch (err) {
-            console.error("Error generating image for post:", err);
-            setError(err instanceof Error ? err.message : "Erreur génération d'une image");
-          } finally {
-            setLoadingImages((curr) => ({ ...curr, [result.id]: false }));
-          }
-        } else if (result.type === "carousel" && result.slides) {
-          const slidePromises = result.slides.map(async (slide, index) => {
-            const slideKey = `${result.id}-${index}`;
-            setLoadingImages((curr) => ({ ...curr, [slideKey]: true }));
-            try {
-              const res = await fetch("/api/ai/image", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  networkPost: `${slide.title}\n${slide.text}`,
-                  sourceContent,
-                  platform: result.platform || "linkedin",
-                  provider: config.imageProvider,
-                  modelId: config.imageModel,
-                }),
-              });
-              const data = await res.json();
-              if (!res.ok || data.error) throw new Error(data.error || "Génération image carrousel impossible");
-              
-              setResults((currResults) =>
-                currResults.map((r) => {
-                  if (r.id !== result.id || !r.slides) return r;
-                  const newSlides = [...r.slides];
-                  newSlides[index] = { ...newSlides[index], imageUrl: data.imageUrl };
-                  return { ...r, slides: newSlides };
-                })
-              );
-            } catch (err) {
-              console.error(`Error generating image for slide ${index}:`, err);
-              setError(err instanceof Error ? err.message : "Erreur génération image slide");
-            } finally {
-              setLoadingImages((curr) => ({ ...curr, [slideKey]: false }));
-            }
-          });
-          await Promise.all(slidePromises);
-        }
-      });
-
-      await Promise.all(promises);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "La génération des images a échoué");
-    }
-  };
-
-  const regenerateSingleImage = async (id: string) => {
-    const result = results.find((r) => r.id === id);
-    if (!result) return;
-    setError("");
-    setLoadingImages((curr) => ({ ...curr, [id]: true }));
-    try {
-      const sourceContent = getGenerationSourceContent();
-      const res = await fetch("/api/ai/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          networkPost: result.text || sourceContent.slice(0, 800),
-          sourceContent,
-          platform: result.platform || "linkedin",
-          provider: config.imageProvider,
-          modelId: config.imageModel,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Régénération image impossible");
-      
-      setResults((currResults) =>
-        currResults.map((r) =>
-          r.id === id ? { ...r, imageUrl: data.imageUrl } : r
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "La régénération de l'image a échoué");
-    } finally {
-      setLoadingImages((curr) => ({ ...curr, [id]: false }));
-    }
-  };
-
-  const regenerateCarouselSlideImage = async (resultId: string, slideIndex: number) => {
-    const result = results.find((r) => r.id === resultId);
-    if (!result || !result.slides || !result.slides[slideIndex]) return;
-    const slide = result.slides[slideIndex];
-    const slideKey = `${resultId}-${slideIndex}`;
-    setError("");
-    setLoadingImages((curr) => ({ ...curr, [slideKey]: true }));
-    try {
-      const sourceContent = getGenerationSourceContent();
-      const res = await fetch("/api/ai/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          networkPost: `${slide.title}\n${slide.text}`,
-          sourceContent,
-          platform: result.platform || "linkedin",
-          provider: config.imageProvider,
-          modelId: config.imageModel,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Régénération image slide impossible");
-      
-      setResults((currResults) =>
-        currResults.map((r) => {
-          if (r.id !== resultId || !r.slides) return r;
-          const newSlides = [...r.slides];
-          newSlides[slideIndex] = { ...newSlides[slideIndex], imageUrl: data.imageUrl };
-          return { ...r, slides: newSlides };
-        })
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "La régénération de l'image de la slide a échoué");
-    } finally {
-      setLoadingImages((curr) => ({ ...curr, [slideKey]: false }));
-    }
-  };
-
-  const generateAll = async () => {
-    let sourceContent = getGenerationSourceContent();
-
-    if (!sourceContent.trim() && url.trim()) {
-      const source = await ingestUrl(url.trim());
-      if (!source) return;
-      sourceContent = `[${source.title}]\n${source.content}`;
-    }
-
-    if (!sourceContent.trim()) {
-      setError("Ajoute au moins une source avant de générer.");
-      return;
-    }
-    if (selectedWorks.length === 0 || selectedPlatforms.length === 0) {
-      setError("Sélectionne au moins un format et un réseau.");
-      return;
-    }
-
-    setError("");
-    setResults([]);
-    const nextResults: GeneratedItem[] = [];
-
-    try {
-      for (const work of selectedWorks) {
-        if (work === "post") {
-          for (const platform of selectedPlatforms) {
-            setLoadingLabel(`Post ${platform}`);
-            nextResults.push(await generatePost(platform, sourceContent));
-            setResults([...nextResults]);
-          }
-        }
-        if (work === "carousel") {
-          for (const platform of selectedPlatforms) {
-            setLoadingLabel(`Carrousel ${platform}`);
-            nextResults.push(await generateCarousel(platform, sourceContent));
-            setResults([...nextResults]);
-          }
-        }
-        if (work === "image") {
-          for (const platform of selectedPlatforms) {
-            setLoadingLabel(`Image ${platform}`);
-            nextResults.push(await generateImageResult(platform, sourceContent));
-            setResults([...nextResults]);
-          }
-        }
-        if (work === "article") {
-          setLoadingLabel("Article blog");
-          nextResults.push(await generateArticle(sourceContent));
-          setResults([...nextResults]);
-        }
-        if (work === "video") {
-          setLoadingLabel("Prompt vidéo");
-          nextResults.push(await generateVideoPrompt(sourceContent));
-          setResults([...nextResults]);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "La génération a échoué");
     } finally {
       setLoadingLabel("");
     }
@@ -1331,22 +1028,11 @@ function DashboardContent() {
                       {result.slides && (
                         <div className="grid gap-4 md:grid-cols-2">
                           {result.slides.map((slide, index) => {
-                            const slideKey = `${result.id}-${index}`;
                             return (
                               <div key={`${result.id}-${index}`} className="rounded-lg border bg-slate-50 p-3">
                                 <div className="mb-2 flex items-center justify-between">
                                   <Badge>Slide {index + 1}</Badge>
                                   <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      onClick={() => regenerateCarouselSlideImage(result.id, index)}
-                                      disabled={loadingImages[slideKey]}
-                                      title="Régénérer l'image de cette slide"
-                                      className="text-[#10aee2]"
-                                    >
-                                      <ImageIcon className="h-4 w-4" />
-                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="icon-sm"
@@ -1362,41 +1048,9 @@ function DashboardContent() {
                                     </Button>
                                   </div>
                                 </div>
-                                
-                                <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-md border bg-slate-100 flex items-center justify-center">
-                                  {slide.imageUrl ? (
-                                    <img
-                                      src={slide.imageUrl}
-                                      alt={slide.title}
-                                      className={`h-full w-full object-cover transition-all duration-300 ${
-                                        loadingImages[slideKey] ? "blur-md scale-95" : ""
-                                      }`}
-                                    />
-                                  ) : (
-                                    <div className="text-center p-4 text-slate-400">
-                                      <ImageIcon className="mx-auto h-8 w-8 stroke-1 mb-1 text-slate-300" />
-                                      <p className="text-xs">Aucune image</p>
-                                    </div>
-                                  )}
-                                  
-                                  {loadingImages[slideKey] && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm z-10">
-                                      <Loader2 className="h-6 w-6 animate-spin text-[#10aee2]" />
-                                      <span className="mt-1 text-[10px] font-medium text-slate-600">Génération...</span>
-                                    </div>
-                                  )}
-                                </div>
 
                                 <p className="font-medium text-sm">{slide.title}</p>
                                 <p className="mt-1 text-xs leading-5 text-slate-600">{slide.text}</p>
-                                {slide.imageUrl && (
-                                  <Button asChild variant="outline" size="sm" className="mt-3 w-full">
-                                    <a href={slide.imageUrl} target="_blank" rel="noreferrer">
-                                      <ExternalLink className="h-4 w-4 mr-1" />
-                                      Ouvrir
-                                    </a>
-                                  </Button>
-                                )}
                               </div>
                             );
                           })}
