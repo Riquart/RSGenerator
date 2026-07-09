@@ -44,6 +44,7 @@ export interface ModelDef {
   aspectVocab: AspectVocab;
   params: ParamField[];
   oaiModel?: string; // id du modèle OpenAI (provider 'openai'), ex 'gpt-image-2'
+  supportsRefs?: boolean; // accepte les images de référence de marque (style)
 }
 
 export const PROVIDERS: { id: Provider; label: string }[] = [
@@ -90,8 +91,8 @@ export function defaultAspectFor(model: ModelDef): string {
 function mg(id: string, label: string, family: string, endpoint: string): ModelDef {
   return { id, label, family, provider: "magnific", mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "named", params: [] };
 }
-function mgRatio(id: string, label: string, family: string, endpoint: string): ModelDef {
-  return { id, label, family, provider: "magnific", mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "ratio", params: [] };
+function mgRatio(id: string, label: string, family: string, endpoint: string, supportsRefs = false): ModelDef {
+  return { id, label, family, provider: "magnific", mode: "async", endpoint, aspectKey: "aspect_ratio", aspectVocab: "ratio", params: [], supportsRefs };
 }
 // ── Helper OpenAI (gpt-image, synchrone) ──
 function oai(id: string, label: string, oaiModel: string): ModelDef {
@@ -132,6 +133,7 @@ export const MODELS: ModelDef[] = [
     endpoint: "/v1/ai/mystic",
     aspectKey: "aspect_ratio",
     aspectVocab: "named",
+    supportsRefs: true,
     params: [
       {
         key: "model",
@@ -163,8 +165,8 @@ export const MODELS: ModelDef[] = [
   },
 
   // Google (Gemini / Nano Banana / Imagen)
-  mgRatio("nano-banana-pro", "Nano Banana Pro (Gemini)", "Google", "/v1/ai/text-to-image/nano-banana-pro"),
-  mgRatio("nano-banana-pro-flash", "Nano Banana Pro Flash", "Google", "/v1/ai/text-to-image/nano-banana-pro-flash"),
+  mgRatio("nano-banana-pro", "Nano Banana Pro (Gemini)", "Google", "/v1/ai/text-to-image/nano-banana-pro", true),
+  mgRatio("nano-banana-pro-flash", "Nano Banana Pro Flash", "Google", "/v1/ai/text-to-image/nano-banana-pro-flash", true),
   mg("imagen3", "Imagen 3", "Google", "/v1/ai/text-to-image/imagen3"),
 
   // Flux

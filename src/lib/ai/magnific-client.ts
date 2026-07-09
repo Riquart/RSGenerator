@@ -48,6 +48,32 @@ export function buildBody(
   return body;
 }
 
+function stripDataUri(uri: string): string {
+  return uri.replace(/^data:[^;]+;base64,/, "");
+}
+function mimeOf(uri: string): string {
+  const m = uri.match(/^data:([^;]+);base64,/);
+  return m ? m[1] : "image/png";
+}
+
+// Attache les images de référence de marque au body selon le modèle (style).
+// Vérifié en direct : Mystic -> style_reference (base64) ; Nano Banana -> reference_images[{image, mime_type}].
+export function applyReferences(
+  model: ModelDef,
+  body: Record<string, unknown>,
+  refs: string[]
+): void {
+  if (!refs || refs.length === 0) return;
+  if (model.id === "mystic") {
+    body.style_reference = stripDataUri(refs[0]);
+  } else if (model.id === "nano-banana-pro" || model.id === "nano-banana-pro-flash") {
+    body.reference_images = refs.slice(0, 6).map((uri) => ({
+      image: stripDataUri(uri),
+      mime_type: mimeOf(uri),
+    }));
+  }
+}
+
 // Extrait une image d'une réponse SYNCHRONE ({ data: [{ base64 }] }).
 export function extractSyncImage(json: unknown): string | undefined {
   const data = (json as { data?: Array<{ base64?: string; url?: string }> })?.data;

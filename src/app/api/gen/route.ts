@@ -8,10 +8,11 @@ import {
   buildBody,
   extractSyncImage,
   readAsyncStatus,
+  applyReferences,
 } from "@/lib/ai/magnific-client";
 import { aiManager } from "@/lib/ai/provider-manager";
 import { loadBrandIdentityServer } from "@/lib/brand-identity-server";
-import { buildBrandVisualBlock } from "@/lib/brand-identity";
+import { buildBrandVisualBlock, type BrandIdentity } from "@/lib/brand-identity";
 import { getClientIP } from "@/lib/get-ip";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -22,6 +23,7 @@ const genSchema = z.object({
   params: z.record(z.any()).optional().default({}),
   // Passe de description visuelle (rend l'image moins littérale) + charte/DA.
   describe: z.boolean().optional().default(true),
+  useRefs: z.boolean().optional().default(true),
   textProvider: z.string().optional(),
   textModel: z.string().optional(),
   visualStyle: z.string().optional(),
@@ -33,9 +35,9 @@ async function buildImagePrompt(
   describe: boolean,
   visualStyle: string | undefined,
   textProvider: string | undefined,
-  textModel: string | undefined
+  textModel: string | undefined,
+  brand: BrandIdentity | null
 ): Promise<string> {
-  const brand = loadBrandIdentityServer();
   const visualBlock = buildBrandVisualBlock(brand); // couleurs, mood, typo, exclusions = DA
   const styleText = [visualStyle, visualBlock].filter(Boolean).join(". ");
 
@@ -78,14 +80,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Requête invalide", details: parsed.error.format() }, { status: 400 });
     }
 
-    const { modelId, prompt, aspect, params, describe, textProvider, textModel, visualStyle } = parsed.data;
+    const { modelId, prompt, aspect, params, describe, useRefs, textProvider, textModel, visualStyle } = parsed.data;
     const model = getModel(modelId);
     if (!model) {
       return NextResponse.json({ error: `Modèle inconnu : ${modelId}` }, { status: 400 });
     }
 
+    // Charte/DA marque chargée une fois (prompt + images de référence).
+    const brand = loadBrandIdentityServer();
+
     // Prompt image enrichi : description visuelle IA (optionnelle) + charte/DA marque.
-    const imagePrompt = await buildImagePrompt(prompt, describe, visualStyle, textProvider, textModel);
+    const imagePrompt = await buildImagePrompt(prompt, describe, visualStyle, textProvider, textModel, brand);
 
     // ── OpenAI (gpt-image, synchrone) ──
     if (model.provider === "openai") {
@@ -124,6 +129,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = buildBody(model, imagePrompt, aspect, params);
+    if (useRefs && model.supportsRefs && brand?.referenceImages?.length) {
+      applyReferences(model, body, brand.referenceImages);
+    }
     const res = await fetch(`${MAGNIFIC_BASE}${model.endpoint}`, {
       method: "POST",
       headers: magnificHeaders(key),

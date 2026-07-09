@@ -44,6 +44,7 @@ interface Job {
   series: boolean;
   count: number;
   describe: boolean;
+  useRefs: boolean;
   params: Record<string, string | number>;
   running: boolean;
   images: JobImage[];
@@ -51,6 +52,7 @@ interface Job {
 
 interface DescribeOpts {
   describe: boolean;
+  useRefs: boolean;
   textProvider?: string;
   textModel?: string;
 }
@@ -127,6 +129,7 @@ export function GenerationJobs({
         series: false,
         count: hasSlides ? slides!.length : 3,
         describe: true,
+        useRefs: true,
         params: defaultParams(model),
         running: false,
         images: [],
@@ -166,6 +169,7 @@ export function GenerationJobs({
 
     const opts: DescribeOpts = {
       describe: job.describe,
+      useRefs: job.useRefs,
       textProvider: config.textProvider,
       textModel: config.textModel,
     };
@@ -324,6 +328,19 @@ export function GenerationJobs({
                 />
                 Description visuelle IA + DA
               </label>
+              {model.supportsRefs && (
+                <label
+                  className="flex items-center gap-2 text-sm text-slate-600"
+                  title="Utilise les images de référence de la marque comme référence de style."
+                >
+                  <input
+                    type="checkbox"
+                    checked={job.useRefs}
+                    onChange={(e) => patchJob(job.id, { useRefs: e.target.checked })}
+                  />
+                  Réf. de marque
+                </label>
+              )}
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"
