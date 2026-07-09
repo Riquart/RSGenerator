@@ -125,15 +125,8 @@ export const MODELS: ModelDef[] = [
     aspectKey: "aspect_ratio",
     params: [],
   },
-  {
-    id: "seedream-v4-5",
-    label: "Seedream 4.5",
-    family: "Seedream",
-    mode: "async",
-    endpoint: "/v1/ai/text-to-image/seedream-v4-5",
-    aspectKey: "aspect_ratio",
-    params: [{ key: "seed", label: "Seed (optionnel)", type: "number", min: 0, max: 1000000 }],
-  },
+  // Seedream 4.5 : endpoint OK mais "Validation error" sur le body — params à caler
+  // (probablement le champ ratio ou un champ requis). À réactiver après vérif API reference.
 ];
 
 export function getModel(id: string): ModelDef | undefined {
