@@ -1313,18 +1313,6 @@ function DashboardContent() {
                           <h3 className="mt-2 font-semibold">{result.title}</h3>
                         </div>
                         <div className="flex items-center gap-2">
-                          {result.type === "image" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => regenerateSingleImage(result.id)}
-                              disabled={loadingImages[result.id]}
-                              className="text-[#10aee2] border-[#10aee2]/20 hover:bg-[#10aee2]/5"
-                            >
-                              <ImageIcon className="h-4 w-4 mr-1" />
-                              Régénérer l'image
-                            </Button>
-                          )}
                           <Button
                             variant="outline"
                             size="sm"
@@ -1335,32 +1323,6 @@ function DashboardContent() {
                           </Button>
                         </div>
                       </div>
-
-                      {result.type === "image" && (
-                        <div className="relative mb-4 overflow-hidden rounded-lg border bg-slate-50 min-h-[200px] flex items-center justify-center">
-                          {result.imageUrl ? (
-                            <img
-                              src={result.imageUrl}
-                              alt={result.title}
-                              className={`max-h-[520px] w-full object-contain transition-all duration-300 ${
-                                loadingImages[result.id] ? "blur-md scale-95" : ""
-                              }`}
-                            />
-                          ) : (
-                            <div className="text-center p-6 text-slate-400">
-                              <ImageIcon className="mx-auto h-12 w-12 stroke-1 mb-2 text-slate-300" />
-                              <p className="text-sm">Aucune image générée</p>
-                            </div>
-                          )}
-                          
-                          {loadingImages[result.id] && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm z-10 transition-all duration-300">
-                              <Loader2 className="h-8 w-8 animate-spin text-[#10aee2]" />
-                              <span className="mt-2 text-xs font-medium text-slate-600">Génération de l'image...</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
 
                       {result.text && (
                         <Textarea value={result.text} readOnly className="min-h-40 bg-slate-50 mb-4" />
@@ -1443,7 +1405,8 @@ function DashboardContent() {
 
                       {(result.type === "post" ||
                         result.type === "article" ||
-                        result.type === "carousel") && (
+                        result.type === "carousel" ||
+                        result.type === "image") && (
                         <GenerationJobs
                           targetId={result.id}
                           baseText={getResultText(result)}
@@ -1486,7 +1449,7 @@ function DashboardContent() {
           </div>
           <Button
             type="button"
-            onClick={generateAll}
+            onClick={generateTextOnly}
             disabled={isBusy}
             size="lg"
             className="bg-gradient-to-r from-[#10aee2] to-[#3b82f6] text-white hover:opacity-90"
