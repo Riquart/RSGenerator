@@ -110,6 +110,22 @@ function lengthDescription(length: ArticleLength): string {
   }
 }
 
+// Cache mémoire de l'enrichissement web (évite de repayer une recherche identique
+// lors d'une régénération). Clé = hash(sources + guidance + domaines).
+type SynthResult = {
+  content: string
+  trace: PromptTrace
+  citations?: { url: string; title: string }[]
+  enriched?: boolean
+}
+const webEnrichCache = new Map<string, SynthResult>()
+function webEnrichCacheKey(sourcesText: string, guidance: string, domains: string[]): string {
+  const raw = `${domains.slice().sort().join(',')}::${guidance}::${sourcesText}`
+  let h = 0
+  for (let i = 0; i < raw.length; i++) h = (h * 31 + raw.charCodeAt(i)) | 0
+  return `we_${h}_${raw.length}`
+}
+
 class AIProviderManager {
   private static instance: AIProviderManager
 
@@ -961,8 +977,9 @@ Règles :
     sourcesText: string,
     guidancePrompt: string,
     provider?: AIProvider,
-    model?: string
-  ): Promise<{ content: string; trace: PromptTrace }> {
+    model?: string,
+    options: { webEnrichment?: boolean; allowedDomains?: string[] } = {}
+  ): Promise<SynthResult> {
     const hasKey = getServerKey(provider || 'gemini') || getServerKey('openai')
     if (!hasKey) {
       const mockResult = `[Synthèse de démonstration]\n\nLes sources suivantes ont été combinées selon votre directive : "${guidancePrompt}".\n\nContenu des sources traitées :\n${sourcesText.slice(0, 500)}...\n\nNote : Veuillez configurer vos clés API pour générer de vraies synthèses.`
@@ -990,7 +1007,80 @@ Règles :
       ],
     }
 
-    return { content: text, trace }
+    const base: SynthResult = { content: text, trace }
+
+    // Chemin OFF : comportement existant strictement inchangé.
+    if (!options.webEnrichment) return base
+
+    // Chemin ON : enrichissement web via OpenAI Responses API + outil web_search.
+    // Cache (évite de repayer une recherche identique) + dégradation gracieuse.
+    const cacheKey = webEnrichCacheKey(sourcesText, guidancePrompt, options.allowedDomains || [])
+    const cached = webEnrichCache.get(cacheKey)
+    if (cached) return cached
+
+    try {
+      const { text: enrichedText, citations } = await this.enrichSynthesisWithWeb(
+        text,
+        options.allowedDomains || []
+      )
+      const result: SynthResult = { content: enrichedText, trace, citations, enriched: true }
+      webEnrichCache.set(cacheKey, result)
+      return result
+    } catch (err) {
+      console.error('Enrichissement web échoué, fallback synthèse simple:', err instanceof Error ? err.message : err)
+      return { ...base, enriched: false }
+    }
+  }
+
+  // Enrichit une synthèse existante avec des infos web à jour + citations cliquables.
+  // Utilise le client OpenAI déjà configuré (clé OPENAI_API_KEY) via la Responses API.
+  private async enrichSynthesisWithWeb(
+    baseCommune: string,
+    allowedDomains: string[]
+  ): Promise<{ text: string; citations: { url: string; title: string }[] }> {
+    if (!this.openaiClient) throw new Error('OpenAI non configuré (OPENAI_API_KEY absente)')
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tool: any = { type: 'web_search' }
+    if (allowedDomains.length) {
+      tool.filters = { allowed_domains: allowedDomains.slice(0, 100) }
+    }
+
+    const input =
+      `Base commune issue des sources fournies par l'utilisateur :\n${baseCommune}\n\n` +
+      `Enrichis cette synthèse avec des informations web complémentaires et à jour ` +
+      `(chiffres récents, contexte, actualité). N'ajoute que ce qui apporte une vraie valeur. ` +
+      `Cite systématiquement chaque apport web. Réponds en français, structuré par points clés, ` +
+      `sans aucune phrase d'introduction ni accusé de réception.`
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res: any = await this.openaiClient.responses.create({
+      model: 'gpt-4o-mini',
+      tools: [tool],
+      input,
+    })
+
+    const text: string = res?.output_text || baseCommune
+    return { text, citations: this.extractUrlCitations(res) }
+  }
+
+  // Extrait les annotations url_citation (URL + titre) de la réponse Responses API.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private extractUrlCitations(res: any): { url: string; title: string }[] {
+    const out: { url: string; title: string }[] = []
+    const seen = new Set<string>()
+    for (const item of res?.output || []) {
+      if (item?.type !== 'message') continue
+      for (const c of item.content || []) {
+        for (const ann of c.annotations || []) {
+          if (ann?.type === 'url_citation' && ann.url && !seen.has(ann.url)) {
+            seen.add(ann.url)
+            out.push({ url: ann.url, title: ann.title || ann.url })
+          }
+        }
+      }
+    }
+    return out
   }
 
   public async generateVideo(

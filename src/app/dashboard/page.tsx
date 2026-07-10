@@ -155,6 +155,9 @@ function DashboardContent() {
   const [results, setResults] = useState<GeneratedItem[]>([]);
   const [copiedId, setCopiedId] = useState("");
   const [synthesisOpen, setSynthesisOpen] = useState(false);
+  const [webEnrichment, setWebEnrichment] = useState(false);
+  const [synthesisCitations, setSynthesisCitations] = useState<{ url: string; title: string }[]>([]);
+  const [synthesisEnriched, setSynthesisEnriched] = useState<boolean | null>(null);
 
   const activeContent = useMemo(() => {
     return sources
@@ -440,7 +443,7 @@ function DashboardContent() {
       return;
     }
     setError("");
-    setLoadingLabel("Génération de la synthèse");
+    setLoadingLabel(webEnrichment ? "Recherche web en cours…" : "Génération de la synthèse");
     try {
       const res = await fetch("/api/ai/synthesize", {
         method: "POST",
@@ -450,6 +453,8 @@ function DashboardContent() {
           guidancePrompt,
           provider: config.textProvider,
           model: config.textModel,
+          webEnrichment,
+          allowedDomains: [],
         }),
       });
       const data = await res.json();
@@ -457,6 +462,8 @@ function DashboardContent() {
       const text = data.content || data.text || "";
       setSynthesisText(text);
       localStorage.setItem("synthesis_text", text);
+      setSynthesisCitations(Array.isArray(data.citations) ? data.citations : []);
+      setSynthesisEnriched(webEnrichment ? Boolean(data.enriched) : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "La génération de la synthèse a échoué");
     } finally {
@@ -802,6 +809,20 @@ function DashboardContent() {
                 />
               </div>
 
+              <label className="flex items-start gap-2 rounded-lg border border-[#10aee2]/20 bg-[#10aee2]/5 p-3">
+                <Checkbox
+                  checked={webEnrichment}
+                  onCheckedChange={() => setWebEnrichment((v) => !v)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-sm font-medium text-slate-800">Enrichir avec une recherche web</span>
+                  <span className="block text-xs text-slate-500">
+                    Complète la synthèse avec des informations web à jour et sourcées. Ajoute quelques secondes à la génération.
+                  </span>
+                </span>
+              </label>
+
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -809,12 +830,12 @@ function DashboardContent() {
                   disabled={sources.filter((s) => s.selected).length === 0 || isBusy}
                   className="bg-[#10aee2] hover:bg-[#0d92be] text-white"
                 >
-                  {loadingLabel === "Génération de la synthèse" ? (
+                  {loadingLabel === "Génération de la synthèse" || loadingLabel === "Recherche web en cours…" ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Sparkles className="mr-2 h-4 w-4" />
                   )}
-                  Générer la synthèse
+                  {loadingLabel === "Recherche web en cours…" ? "Recherche web…" : "Générer la synthèse"}
                 </Button>
                 
                 <Button
@@ -840,6 +861,35 @@ function DashboardContent() {
                   className="min-h-40 bg-slate-50 font-mono text-sm"
                 />
               </div>
+
+              {synthesisCitations.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-[#10aee2]/20 bg-white p-3">
+                  <Label className="flex items-center gap-2 text-[#087aa0]">
+                    <Link2 className="h-4 w-4" />
+                    Sources web ({synthesisCitations.length})
+                  </Label>
+                  <ul className="space-y-1">
+                    {synthesisCitations.map((c, i) => (
+                      <li key={i} className="text-sm">
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#10aee2] hover:underline break-all"
+                        >
+                          {c.title || c.url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {synthesisEnriched === false && (
+                <p className="text-xs text-slate-400">
+                  Enrichissement web indisponible — synthèse standard affichée.
+                </p>
+              )}
             </CardContent>
             )}
           </Card>

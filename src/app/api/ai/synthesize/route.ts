@@ -10,6 +10,8 @@ const synthesizeSchema = z.object({
   guidancePrompt: z.string(),
   provider: z.string().optional(),
   model: z.string().optional(),
+  webEnrichment: z.boolean().optional().default(false),
+  allowedDomains: z.array(z.string()).optional().default([]),
 })
 
 export async function POST(request: NextRequest) {
@@ -30,14 +32,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { sourcesText, guidancePrompt, provider, model } = parsed.data
+    const { sourcesText, guidancePrompt, provider, model, webEnrichment, allowedDomains } = parsed.data
     const aiProvider = (provider as AIProvider) || undefined
 
     const result = await aiManager.synthesizeSources(
       sourcesText,
       guidancePrompt,
       aiProvider,
-      model
+      model,
+      { webEnrichment, allowedDomains }
     )
     return NextResponse.json(result)
   } catch (error) {
