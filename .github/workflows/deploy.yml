@@ -1,9 +1,8 @@
 name: Deploy Next.js Standalone to Hostinger
 
 on:
-  push:
-    branches:
-      - main
+  # Auto-deploy Hostinger sur push DÉSACTIVÉ : le projet est déployé sur Railway.
+  # Évite les emails d'échec GitHub Actions à chaque push. Reste lançable à la main.
   workflow_dispatch:
 
 concurrency:
