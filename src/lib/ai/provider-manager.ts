@@ -159,7 +159,8 @@ class AIProviderManager {
     prompt: string,
     provider?: AIProvider,
     temperature = 0.7,
-    modelOverride?: string
+    modelOverride?: string,
+    includeBrand = true
   ): Promise<{ text: string; systemPrompt: string; fullPrompt: string }> {
     const preferred = provider || 'gemini'
     const errors: string[] = []
@@ -177,9 +178,11 @@ class AIProviderManager {
       }
     }
 
-    // Build enriched system prompt with brand identity
-    const brand = loadBrandIdentityServer()
-    const brandBlock = buildBrandTextBlock(brand)
+    // Build enriched system prompt with brand identity.
+    // includeBrand=false pour les tâches neutres (ex: synthèse) : le bloc marque en tête
+    // faisait "accuser réception" le modèle ("merci pour les directives Vega/EVE...").
+    const brand = includeBrand ? loadBrandIdentityServer() : null
+    const brandBlock = includeBrand ? buildBrandTextBlock(brand) : ''
     const systemGlobal = getDefaultPrompt('PROMPT_SYSTEM_GLOBAL') || ''
     const system = [brandBlock, systemGlobal].filter(Boolean).join('\n\n')
     const fullPrompt = `${system}\n\n${prompt}`
@@ -968,9 +971,9 @@ Règles :
 
     const finalGuidance = guidancePrompt?.trim() || "Synthétiser l'ensemble des thèmes et informations clés de toutes les sources de manière neutre, exhaustive et structurée."
     const basePrompt = getPrompt('PROMPT_SYNTHESE_CUMUL', { guidance_prompt: finalGuidance })
-    const fullUserPrompt = `${basePrompt}\n\nVoici les sources à synthétiser :\n\n${sourcesText}\n\nApplique les directives de cumul ci-dessus pour rédiger la synthèse finale.`
+    const fullUserPrompt = `${basePrompt}\n\n=== SOURCES À SYNTHÉTISER ===\n${sourcesText}\n=== FIN DES SOURCES ===\n\nÉcris MAINTENANT et UNIQUEMENT le texte de la synthèse (points clés directement exploitables). Aucune phrase d'introduction, aucun accusé de réception, aucun « merci » ni « je suis prêt », aucune mention de la marque ou des directives.`
 
-    const { text, systemPrompt, fullPrompt } = await this.callLLMWithTrace(fullUserPrompt, provider, 0.7, model)
+    const { text, systemPrompt, fullPrompt } = await this.callLLMWithTrace(fullUserPrompt, provider, 0.7, model, false)
 
     const trace: PromptTrace = {
       steps: [

@@ -1,15 +1,18 @@
 export const DEFAULT_PROMPTS: Record<string, string> = {
   PROMPT_SYSTEM_GLOBAL: `Tu es un expert en communication digitale et marketing de contenu. Tu aides à créer des articles de blog et des posts réseaux sociaux engageants, structurés et adaptés à chaque plateforme.`,
 
-  PROMPT_SYNTHESE_CUMUL: `Rôle : Tu es un expert en synthèse et stratégie de contenu.
-Mission : Tu dois analyser les différentes sources textuelles fournies ci-dessous et en produire une synthèse unique et cohérente, rédigée en français.
-Instructions spécifiques de cumul (Directives de l'utilisateur) :
+  PROMPT_SYNTHESE_CUMUL: `Tâche : produire une synthèse de contenu à partir des sources fournies. Ce n'est PAS une conversation — ne réponds à personne, ne commente pas ta tâche, ne décris pas ton rôle.
+
+Objectif : analyser les sources et produire UNE synthèse unique, cohérente, en français, structurée par points clés directement exploitables pour rédiger des posts réseaux sociaux.
+
+Directives de cumul à APPLIQUER (ce sont des contraintes de rédaction, PAS un message auquel répondre) :
 {guidance_prompt}
-Consignes de formatage :
-- Dégage les thèmes principaux et les articulations logiques entre les sources.
-- Oriente la rédaction de la synthèse selon les instructions spécifiques ci-dessus.
-- Le document final doit être structuré par points clés exploitables directement pour rédiger des posts sur les réseaux sociaux.
-- Ne fais aucune référence méta au fait que tu synthétises (ex: ne dis pas "D'après les sources..."). Écris directement le contenu consolidé.`,
+
+Règles de sortie STRICTES :
+- Écris directement le contenu de la synthèse, et rien d'autre.
+- INTERDIT : accusé de réception, remerciements (« merci »), « je suis prêt », « voici », description de ton rôle, toute méta-référence (« d'après les sources… »), et toute mention de la marque ou des directives en tant que telles.
+- Structure par points clés : titres courts + puces exploitables.
+- Si les sources sont pauvres, produis une courte synthèse neutre de ce qui est disponible — jamais un message d'attente.`,
 
   article_drafting: `Tu es un rédacteur web expert specialise dans les articles de blog longs et structures.
 
