@@ -115,9 +115,7 @@ function DashboardContent() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedPrompt = localStorage.getItem("guidance_prompt");
-      const storedSynthesis = localStorage.getItem("synthesis_text");
       if (storedPrompt) setGuidancePrompt(storedPrompt);
-      if (storedSynthesis) setSynthesisText(storedSynthesis);
     }
   }, []);
 
@@ -158,6 +156,17 @@ function DashboardContent() {
   const [webEnrichment, setWebEnrichment] = useState(false);
   const [synthesisCitations, setSynthesisCitations] = useState<{ url: string; title: string }[]>([]);
   const [synthesisEnriched, setSynthesisEnriched] = useState<boolean | null>(null);
+
+  // Option A : la synthèse est liée aux sources. Aucune source active = zone de synthèse vide
+  // (évite un texte de synthèse « fantôme » persistant qui polluerait aussi le prompt visuel).
+  useEffect(() => {
+    if (sources.filter((s) => s.selected).length === 0) {
+      setSynthesisText("");
+      setSynthesisCitations([]);
+      setSynthesisEnriched(null);
+      if (typeof window !== "undefined") localStorage.removeItem("synthesis_text");
+    }
+  }, [sources]);
 
   const activeContent = useMemo(() => {
     return sources
