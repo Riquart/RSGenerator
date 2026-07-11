@@ -64,25 +64,27 @@ export function CarouselVisuals({ slides }: { slides: Slide[] }) {
     setImages([]);
     try {
       const logoOpt = logo ? { logo: { dataUrl: logo, size: 120 } } : {};
-      const urls = await Promise.all(
+      // allSettled : une slide qui échoue n'empêche pas les autres de s'afficher.
+      const settled = await Promise.allSettled(
         slides.map((s, i) => {
           const bg = palette[i % palette.length];
-          if (i === 0) {
-            return render({ template: "carousel-cover", format, title: s.title, text: s.text, bg, ...logoOpt });
-          }
-          return render({
-            template: "carousel-slide",
-            format,
-            title: s.title,
-            text: s.text,
-            bg,
-            index: i,
-            total: slides.length,
-            ...logoOpt,
-          });
+          const common = { format, title: s.title, text: s.text, bg, ...logoOpt };
+          return i === 0
+            ? render({ template: "carousel-cover", ...common })
+            : render({ template: "carousel-slide", index: i, total: slides.length, ...common });
         })
       );
+      const urls = settled
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+        .map((r) => r.value);
+      const failed = settled.length - urls.length;
       setImages(urls);
+      if (urls.length === 0) {
+        const first = settled.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        setError(first ? `Rendu impossible : ${first.reason?.message || first.reason}` : "Aucun visuel généré.");
+      } else if (failed > 0) {
+        setError(`${failed} slide(s) sur ${settled.length} n'ont pas pu être rendues.`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {
