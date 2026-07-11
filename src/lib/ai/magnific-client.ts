@@ -79,7 +79,11 @@ export function extractSyncImage(json: unknown): string | undefined {
   const data = (json as { data?: Array<{ base64?: string; url?: string }> })?.data;
   const first = Array.isArray(data) ? data[0] : undefined;
   if (first?.url) return first.url;
-  if (first?.base64) return `data:image/png;base64,${first.base64}`;
+  if (first?.base64) {
+    // Sniff JPEG vs PNG depuis l'en-tête base64 (sinon Satori peut échouer à décoder).
+    const mime = first.base64.startsWith("/9j/") ? "image/jpeg" : "image/png";
+    return `data:${mime};base64,${first.base64}`;
+  }
   return undefined;
 }
 

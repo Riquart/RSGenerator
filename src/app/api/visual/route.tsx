@@ -46,16 +46,18 @@ function logoNode(logo?: Logo): ReactElement | null {
   );
 }
 
-// Fond image + voile sombre pour lisibilité du texte net posé au-dessus.
-function bgStyle(bg: string, bgImage?: string) {
-  if (bgImage) {
-    return {
-      backgroundImage: `linear-gradient(rgba(0,0,0,0.42), rgba(0,0,0,0.42)), url(${bgImage})`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-    };
-  }
-  return { background: bg };
+// Calques de fond image pour Satori : un <img> en cover + un voile sombre.
+// (Satori ne gère pas `background-image: linear-gradient(...), url(...)` — on empile
+// des calques absolus ; le texte, placé APRÈS dans le DOM, se dessine au-dessus.)
+function bgImageLayers(bgImage?: string): ReactElement | null {
+  if (!bgImage) return null;
+  return (
+    <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={bgImage} alt="" width="100%" height="100%" style={{ objectFit: "cover" }} />
+      <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.45)" }} />
+    </div>
+  );
 }
 
 // ── Gabarit : colonne à N zones ──
@@ -68,7 +70,8 @@ function columnN(zones: Zone[], fmt: string, logo?: Logo): ReactElement {
         const bg = z.bg || "#0E254F";
         const color = z.bgImage ? "#FFFFFF" : z.color || idealText(bg);
         return (
-          <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 64px", ...bgStyle(bg, z.bgImage) }}>
+          <div key={i} style={{ position: "relative", overflow: "hidden", flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 64px", backgroundColor: bg }}>
+            {bgImageLayers(z.bgImage)}
             <div style={{ display: "flex", fontSize, fontWeight: 700, color, textAlign: "center", lineHeight: 1.25 }}>{z.text}</div>
           </div>
         );
@@ -83,7 +86,8 @@ function carouselSlide(o: { title?: string; text?: string; bg?: string; bgImage?
   const bg = o.bg || "#0E254F";
   const color = o.bgImage ? "#FFFFFF" : idealText(bg);
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 80, position: "relative", fontFamily: "Inter", ...bgStyle(bg, o.bgImage) }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 80, position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
+      {bgImageLayers(o.bgImage)}
       {o.total ? (
         <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color, opacity: 0.6 }}>{(o.index ?? 0) + 1}/{o.total}</div>
       ) : null}
@@ -101,7 +105,8 @@ function carouselCover(o: { title?: string; text?: string; bg?: string; bgImage?
   const bg = o.bg || "#0E254F";
   const color = o.bgImage ? "#FFFFFF" : idealText(bg);
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 90, justifyContent: "center", position: "relative", fontFamily: "Inter", ...bgStyle(bg, o.bgImage) }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 90, justifyContent: "center", position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
+      {bgImageLayers(o.bgImage)}
       {o.title ? <div style={{ display: "flex", fontSize: 76, fontWeight: 700, color, lineHeight: 1.1 }}>{o.title}</div> : null}
       {o.text ? <div style={{ display: "flex", fontSize: 36, fontWeight: 400, color, marginTop: 28, lineHeight: 1.3 }}>{o.text}</div> : null}
       <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color, opacity: 0.7, marginTop: 48 }}>Swipe →</div>
@@ -115,7 +120,8 @@ function quoteCard(o: { quote?: string; author?: string; bg?: string; bgImage?: 
   const bg = o.bg || "#0E254F";
   const color = o.bgImage ? "#FFFFFF" : idealText(bg);
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 96, justifyContent: "center", position: "relative", fontFamily: "Inter", ...bgStyle(bg, o.bgImage) }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 96, justifyContent: "center", position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
+      {bgImageLayers(o.bgImage)}
       <div style={{ display: "flex", fontSize: 140, fontWeight: 700, color, opacity: 0.35, lineHeight: 0.7 }}>“</div>
       <div style={{ display: "flex", fontSize: 50, fontWeight: 700, color, lineHeight: 1.25 }}>{o.quote || ""}</div>
       {o.author ? <div style={{ display: "flex", fontSize: 32, fontWeight: 400, color, opacity: 0.85, marginTop: 32 }}>— {o.author}</div> : null}
