@@ -43,6 +43,7 @@ import { GenerationJobs } from "@/components/generation/generation-jobs";
 
 type SourceKind = "text" | "url" | "pdf" | "image";
 type WorkType = "post" | "carousel" | "image" | "video" | "article";
+type DeliverableType = "post" | "article" | "carousel";
 type Platform = "linkedin" | "instagram" | "facebook" | "twitter";
 
 interface SourceItem {
@@ -137,11 +138,8 @@ function DashboardContent() {
   };
   const [draftText, setDraftText] = useState("");
   const [url, setUrl] = useState(searchParams.get("url") ?? "");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([
-    "linkedin",
-    "instagram",
-  ]);
-  const [selectedWorks, setSelectedWorks] = useState<WorkType[]>(["post", "carousel"]);
+  const [deliverableType, setDeliverableType] = useState<DeliverableType>("post");
+  const [targetPlatform, setTargetPlatform] = useState<Platform>("linkedin");
   const [tone, setTone] = useState("expert-rassurant");
   const [cta, setCta] = useState("prendre-contact");
   const [slideCount, setSlideCount] = useState("5");
@@ -221,19 +219,7 @@ function DashboardContent() {
     setSources((current) => current.filter((source) => source.id !== id));
   };
 
-  const togglePlatform = (platform: Platform) => {
-    setSelectedPlatforms((current) =>
-      current.includes(platform)
-        ? current.filter((item) => item !== platform)
-        : [...current, platform]
-    );
-  };
-
-  const toggleWork = (work: WorkType) => {
-    setSelectedWorks((current) =>
-      current.includes(work) ? current.filter((item) => item !== work) : [...current, work]
-    );
-  };
+  const needsPlatform = deliverableType === "post" || deliverableType === "carousel";
 
   const ingestText = () => {
     const content = draftText.trim();
@@ -550,57 +536,25 @@ function DashboardContent() {
       setError("Ajoute au moins une source avant de générer.");
       return;
     }
-    if (selectedWorks.length === 0 || selectedPlatforms.length === 0) {
-      setError("Sélectionne au moins un format et un réseau.");
-      return;
-    }
 
     setError("");
     setResults([]);
-    setLoadingLabel("Génération des textes...");
     const nextResults: GeneratedItem[] = [];
 
     try {
-      for (const work of selectedWorks) {
-        if (work === "post") {
-          for (const platform of selectedPlatforms) {
-            setLoadingLabel(`Post ${platform}`);
-            const item = await generatePost(platform, sourceContent);
-            nextResults.push(item);
-            setResults([...nextResults]);
-          }
-        }
-        if (work === "carousel") {
-          for (const platform of selectedPlatforms) {
-            setLoadingLabel(`Carrousel text ${platform}`);
-            const item = await generateCarouselText(platform, sourceContent);
-            nextResults.push(item);
-            setResults([...nextResults]);
-          }
-        }
-        if (work === "image") {
-          for (const platform of selectedPlatforms) {
-            setLoadingLabel(`Image text ${platform}`);
-            const item = await generateImageText(platform, sourceContent);
-            nextResults.push(item);
-            setResults([...nextResults]);
-          }
-        }
-        if (work === "article") {
-          setLoadingLabel("Article blog");
-          const item = await generateArticle(sourceContent);
-          nextResults.push(item);
-          setResults([...nextResults]);
-        }
-        if (work === "video") {
-          setLoadingLabel("Prompt vidéo");
-          const item = await generateVideoPrompt(sourceContent);
-          nextResults.push(item);
-          setResults([...nextResults]);
-        }
+      if (deliverableType === "post") {
+        setLoadingLabel(`Post ${targetPlatform}`);
+        nextResults.push(await generatePost(targetPlatform, sourceContent));
+      } else if (deliverableType === "carousel") {
+        setLoadingLabel(`Carrousel ${targetPlatform}`);
+        nextResults.push(await generateCarouselText(targetPlatform, sourceContent));
+      } else if (deliverableType === "article") {
+        setLoadingLabel("Article blog");
+        nextResults.push(await generateArticle(sourceContent));
       }
+      setResults([...nextResults]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "La génération de texte a échoué");
+      setError(err instanceof Error ? err.message : "La génération a échoué");
     } finally {
       setLoadingLabel("");
     }
@@ -912,44 +866,17 @@ function DashboardContent() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
-                <Label className="mb-3 block">Réseaux destinataires</Label>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {PLATFORM_OPTIONS.map((platform) => (
-                    <button
-                      key={platform.id}
-                      type="button"
-                      onClick={() => togglePlatform(platform.id)}
-                      className={`rounded-lg border p-4 text-left transition ${
-                        selectedPlatforms.includes(platform.id)
-                          ? "border-[#10aee2] bg-[#10aee2]/5"
-                          : "bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <platform.icon className="h-5 w-5 text-[#10aee2]" />
-                          <div>
-                            <p className="font-medium">{platform.label}</p>
-                            <p className="text-xs text-slate-500">{platform.note}</p>
-                          </div>
-                        </div>
-                        {selectedPlatforms.includes(platform.id) && <Check className="h-4 w-4 text-[#10aee2]" />}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label className="mb-3 block">Formats à générer</Label>
-                <div className="grid gap-3 md:grid-cols-5">
-                  {WORK_OPTIONS.map((work) => (
+                <Label className="mb-3 block">Type de contenu</Label>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {WORK_OPTIONS.filter(
+                    (w) => w.id === "post" || w.id === "article" || w.id === "carousel"
+                  ).map((work) => (
                     <button
                       key={work.id}
                       type="button"
-                      onClick={() => toggleWork(work.id)}
+                      onClick={() => setDeliverableType(work.id as DeliverableType)}
                       className={`rounded-lg border p-3 text-left transition ${
-                        selectedWorks.includes(work.id)
+                        deliverableType === work.id
                           ? "border-[#10aee2] bg-[#10aee2]/5"
                           : "bg-white hover:border-slate-300"
                       }`}
@@ -961,6 +888,37 @@ function DashboardContent() {
                   ))}
                 </div>
               </div>
+
+              {needsPlatform && (
+                <div>
+                  <Label className="mb-3 block">Réseau destinataire</Label>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {PLATFORM_OPTIONS.map((platform) => (
+                      <button
+                        key={platform.id}
+                        type="button"
+                        onClick={() => setTargetPlatform(platform.id)}
+                        className={`rounded-lg border p-4 text-left transition ${
+                          targetPlatform === platform.id
+                            ? "border-[#10aee2] bg-[#10aee2]/5"
+                            : "bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <platform.icon className="h-5 w-5 text-[#10aee2]" />
+                            <div>
+                              <p className="font-medium">{platform.label}</p>
+                              <p className="text-xs text-slate-500">{platform.note}</p>
+                            </div>
+                          </div>
+                          {targetPlatform === platform.id && <Check className="h-4 w-4 text-[#10aee2]" />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
@@ -977,46 +935,52 @@ function DashboardContent() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Call-to-action</Label>
-                  <Select value={cta} onValueChange={setCta}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prendre-contact">Prendre contact</SelectItem>
-                      <SelectItem value="decouvrir-solution">Découvrir la solution</SelectItem>
-                      <SelectItem value="commenter">Commenter</SelectItem>
-                      <SelectItem value="aucun">Aucun CTA commercial</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Slides carrousel</Label>
-                  <Select value={slideCount} onValueChange={setSlideCount}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="3">3 slides</SelectItem>
-                      <SelectItem value="5">5 slides</SelectItem>
-                      <SelectItem value="7">7 slides</SelectItem>
-                      <SelectItem value="10">10 slides</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {needsPlatform && (
+                  <div className="space-y-2">
+                    <Label>Call-to-action</Label>
+                    <Select value={cta} onValueChange={setCta}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prendre-contact">Prendre contact</SelectItem>
+                        <SelectItem value="decouvrir-solution">Découvrir la solution</SelectItem>
+                        <SelectItem value="commenter">Commenter</SelectItem>
+                        <SelectItem value="aucun">Aucun CTA commercial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {deliverableType === "carousel" && (
+                  <div className="space-y-2">
+                    <Label>Slides carrousel</Label>
+                    <Select value={slideCount} onValueChange={setSlideCount}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="3">3 slides</SelectItem>
+                        <SelectItem value="5">5 slides</SelectItem>
+                        <SelectItem value="7">7 slides</SelectItem>
+                        <SelectItem value="10">10 slides</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={withHashtags} onCheckedChange={() => setWithHashtags((value) => !value)} />
-                  Hashtags
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={withEmojis} onCheckedChange={() => setWithEmojis((value) => !value)} />
-                  Emojis
-                </label>
-              </div>
+              {needsPlatform && (
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={withHashtags} onCheckedChange={() => setWithHashtags((value) => !value)} />
+                    Hashtags
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={withEmojis} onCheckedChange={() => setWithEmojis((value) => !value)} />
+                    Emojis
+                  </label>
+                </div>
+              )}
 
             </CardContent>
           </Card>
@@ -1030,10 +994,11 @@ function DashboardContent() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-500">
-                Génère des visuels avec le modèle de ton choix, sans dépendre d'un post.
-                Chaque « + Image(s) » ouvre une carte de tâche.
+                Génère des visuels (images seules) à partir de tes sources / ta synthèse, avec le modèle
+                de ton choix. Le prompt est pré-rempli depuis le contexte et reste éditable ; DA et
+                références de marque activables par carte. Chaque « + Image(s) » ouvre une carte de tâche.
               </p>
-              <GenerationJobs targetId="standalone" baseText={synthesisText} />
+              <GenerationJobs targetId="standalone" baseText={synthesisText || activeContent} />
             </CardContent>
           </Card>
 
@@ -1152,12 +1117,18 @@ function DashboardContent() {
               <div className="text-[11px] uppercase tracking-wide text-slate-400">Sources</div>
             </div>
             <div>
-              <div className="text-xl font-bold leading-none">{selectedPlatforms.length}</div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">Réseaux</div>
+              <div className="text-lg font-bold leading-none">
+                {deliverableType === "post" ? "Post" : deliverableType === "article" ? "Article" : "Carrousel"}
+              </div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Type</div>
             </div>
             <div>
-              <div className="text-xl font-bold leading-none">{selectedWorks.length}</div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">Formats</div>
+              <div className="text-lg font-bold leading-none">
+                {needsPlatform
+                  ? PLATFORM_OPTIONS.find((p) => p.id === targetPlatform)?.label ?? targetPlatform
+                  : "—"}
+              </div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Réseau</div>
             </div>
           </div>
           <Button
