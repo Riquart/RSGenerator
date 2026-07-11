@@ -41,6 +41,7 @@ import { useAIConfig } from "@/context/AIConfigContext";
 import type { CarouselPlatform, SocialPlatform } from "@/lib/ai/provider-manager";
 import { GenerationJobs } from "@/components/generation/generation-jobs";
 import { StructuredVisual } from "@/components/generation/structured-visual";
+import { CarouselVisuals } from "@/components/generation/carousel-visuals";
 
 type SourceKind = "text" | "url" | "pdf" | "image";
 type WorkType = "post" | "carousel" | "image" | "video" | "article";
@@ -1096,6 +1097,10 @@ function DashboardContent() {
                             );
                           })}
                         </div>
+                      )}
+
+                      {result.slides && result.slides.length > 0 && (
+                        <CarouselVisuals slides={result.slides} />
                       )}
 
                       {(result.type === "post" ||
