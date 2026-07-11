@@ -17,14 +17,18 @@ function fontData(file: string): Buffer {
   return readFileSync(path.join(process.cwd(), "assets", "fonts", file));
 }
 
-function idealText(hex: string): string {
+function rgb(hex: string): [number, number, number] {
   const c = (hex || "#0E254F").replace("#", "");
-  if (c.length < 6) return "#FFFFFF";
-  const r = parseInt(c.slice(0, 2), 16);
-  const g = parseInt(c.slice(2, 4), 16);
-  const b = parseInt(c.slice(4, 6), 16);
+  return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+function idealText(hex: string): string {
+  const [r, g, b] = rgb(hex);
   const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return L > 0.62 ? "#0E254F" : "#FFFFFF";
+}
+function rgba(hex: string, a: number): string {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 interface Zone {
@@ -46,32 +50,32 @@ function logoNode(logo?: Logo): ReactElement | null {
   );
 }
 
-// Calques de fond image pour Satori : un <img> en cover + un voile sombre.
-// (Satori ne gère pas `background-image: linear-gradient(...), url(...)` — on empile
-// des calques absolus ; le texte, placé APRÈS dans le DOM, se dessine au-dessus.)
-function bgImageLayers(bgImage?: string): ReactElement | null {
+// Calques de fond image (Satori) : <img> en dimensions PIXELS + voile TEINTÉ de la
+// couleur de la zone (pas noir). Le texte, placé APRÈS dans le DOM, se dessine au-dessus.
+function bgImageLayers(bgImage: string | undefined, w: number, h: number, tint: string): ReactElement | null {
   if (!bgImage) return null;
   return (
-    <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}>
+    <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: w, height: h }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={bgImage} alt="" width="100%" height="100%" style={{ objectFit: "cover" }} />
-      <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.45)" }} />
+      <img src={bgImage} alt="" width={w} height={h} style={{ objectFit: "cover" }} />
+      <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: w, height: h, backgroundColor: tint }} />
     </div>
   );
 }
 
 // ── Gabarit : colonne à N zones ──
-function columnN(zones: Zone[], fmt: string, logo?: Logo): ReactElement {
+function columnN(zones: Zone[], w: number, h: number, fmt: string, logo?: Logo): ReactElement {
   const base = fmt === "story_9_16" ? 56 : 48;
   const fontSize = Math.max(28, Math.round(base - (zones.length - 2) * 6));
+  const zoneH = Math.round(h / zones.length);
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", position: "relative", fontFamily: "Inter" }}>
       {zones.map((z, i) => {
         const bg = z.bg || "#0E254F";
-        const color = z.bgImage ? "#FFFFFF" : z.color || idealText(bg);
+        const color = z.color || idealText(bg);
         return (
           <div key={i} style={{ position: "relative", overflow: "hidden", flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 64px", backgroundColor: bg }}>
-            {bgImageLayers(z.bgImage)}
+            {bgImageLayers(z.bgImage, w, zoneH, rgba(bg, 0.55))}
             <div style={{ display: "flex", fontSize, fontWeight: 700, color, textAlign: "center", lineHeight: 1.25 }}>{z.text}</div>
           </div>
         );
@@ -81,13 +85,13 @@ function columnN(zones: Zone[], fmt: string, logo?: Logo): ReactElement {
   );
 }
 
-// ── Gabarit : slide de carrousel (titre + texte + n°) ──
-function carouselSlide(o: { title?: string; text?: string; bg?: string; bgImage?: string; index?: number; total?: number; logo?: Logo }): ReactElement {
+// ── Gabarit : slide de carrousel ──
+function carouselSlide(o: { title?: string; text?: string; bg?: string; bgImage?: string; index?: number; total?: number; logo?: Logo }, w: number, h: number): ReactElement {
   const bg = o.bg || "#0E254F";
-  const color = o.bgImage ? "#FFFFFF" : idealText(bg);
+  const color = idealText(bg);
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 80, position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
-      {bgImageLayers(o.bgImage)}
+      {bgImageLayers(o.bgImage, w, h, rgba(bg, 0.55))}
       {o.total ? (
         <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color, opacity: 0.6 }}>{(o.index ?? 0) + 1}/{o.total}</div>
       ) : null}
@@ -101,12 +105,12 @@ function carouselSlide(o: { title?: string; text?: string; bg?: string; bgImage?
 }
 
 // ── Gabarit : cover de carrousel ──
-function carouselCover(o: { title?: string; text?: string; bg?: string; bgImage?: string; logo?: Logo }): ReactElement {
+function carouselCover(o: { title?: string; text?: string; bg?: string; bgImage?: string; logo?: Logo }, w: number, h: number): ReactElement {
   const bg = o.bg || "#0E254F";
-  const color = o.bgImage ? "#FFFFFF" : idealText(bg);
+  const color = idealText(bg);
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 90, justifyContent: "center", position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
-      {bgImageLayers(o.bgImage)}
+      {bgImageLayers(o.bgImage, w, h, rgba(bg, 0.55))}
       {o.title ? <div style={{ display: "flex", fontSize: 76, fontWeight: 700, color, lineHeight: 1.1 }}>{o.title}</div> : null}
       {o.text ? <div style={{ display: "flex", fontSize: 36, fontWeight: 400, color, marginTop: 28, lineHeight: 1.3 }}>{o.text}</div> : null}
       <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color, opacity: 0.7, marginTop: 48 }}>Swipe →</div>
@@ -116,12 +120,12 @@ function carouselCover(o: { title?: string; text?: string; bg?: string; bgImage?
 }
 
 // ── Gabarit : quote-card ──
-function quoteCard(o: { quote?: string; author?: string; bg?: string; bgImage?: string; logo?: Logo }): ReactElement {
+function quoteCard(o: { quote?: string; author?: string; bg?: string; bgImage?: string; logo?: Logo }, w: number, h: number): ReactElement {
   const bg = o.bg || "#0E254F";
-  const color = o.bgImage ? "#FFFFFF" : idealText(bg);
+  const color = idealText(bg);
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 96, justifyContent: "center", position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
-      {bgImageLayers(o.bgImage)}
+      {bgImageLayers(o.bgImage, w, h, rgba(bg, 0.55))}
       <div style={{ display: "flex", fontSize: 140, fontWeight: 700, color, opacity: 0.35, lineHeight: 0.7 }}>“</div>
       <div style={{ display: "flex", fontSize: 50, fontWeight: 700, color, lineHeight: 1.25 }}>{o.quote || ""}</div>
       {o.author ? <div style={{ display: "flex", fontSize: 32, fontWeight: 400, color, opacity: 0.85, marginTop: 32 }}>— {o.author}</div> : null}
@@ -140,17 +144,17 @@ export async function POST(req: NextRequest) {
 
     let element: ReactElement;
     if (template === "carousel-slide") {
-      element = carouselSlide({ ...body, logo });
+      element = carouselSlide({ ...body, logo }, w, h);
     } else if (template === "carousel-cover") {
-      element = carouselCover({ ...body, logo });
+      element = carouselCover({ ...body, logo }, w, h);
     } else if (template === "quote-card") {
-      element = quoteCard({ ...body, logo });
+      element = quoteCard({ ...body, logo }, w, h);
     } else {
       const zones: Zone[] = Array.isArray(body.zones) ? body.zones.slice(0, 6) : [];
       if (zones.length === 0) {
         return NextResponse.json({ error: "Au moins une zone est requise." }, { status: 400 });
       }
-      element = columnN(zones, format, logo);
+      element = columnN(zones, w, h, format, logo);
     }
 
     return new ImageResponse(element, {
