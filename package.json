@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:static": "next build",
-    "postbuild": "node -e \"const fs = require('fs'); try { if (fs.existsSync('public')) fs.cpSync('public', '.next/standalone/public', {recursive: true, force: true}); if (fs.existsSync('.next/static')) fs.cpSync('.next/static', '.next/standalone/.next/static', {recursive: true, force: true}); if (fs.existsSync('brand-identity.json')) fs.copyFileSync('brand-identity.json', '.next/standalone/brand-identity.json'); } catch (e) { console.error(e); }\"",
+    "postbuild": "node -e \"const fs = require('fs'); try { if (fs.existsSync('public')) fs.cpSync('public', '.next/standalone/public', {recursive: true, force: true}); if (fs.existsSync('.next/static')) fs.cpSync('.next/static', '.next/standalone/.next/static', {recursive: true, force: true}); if (fs.existsSync('brand-identity.json')) fs.copyFileSync('brand-identity.json', '.next/standalone/brand-identity.json'); if (fs.existsSync('assets')) fs.cpSync('assets', '.next/standalone/assets', {recursive: true, force: true}); } catch (e) { console.error(e); }\"",
     "start": "node server.js",
     "lint": "eslint"
   },
