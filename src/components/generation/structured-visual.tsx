@@ -69,6 +69,8 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
 
   const [gabarit, setGabarit] = useState<Gabarit>("column-n");
   const [panelBg, setPanelBg] = useState("#0E254F");
+  const [panelBgImage, setPanelBgImage] = useState<string | undefined>(); // fond image IA (gabarits mono-panneau)
+  const [panelBgLoading, setPanelBgLoading] = useState(false);
   // quote-card
   const [quote, setQuote] = useState("");
   const [author, setAuthor] = useState("");
@@ -151,6 +153,46 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
     }
   };
 
+  // Texte de référence du gabarit courant, pour piloter le prompt du fond IA.
+  const panelPromptBase = (): string => {
+    if (gabarit === "quote-card") return [quote, author].filter(Boolean).join(" — ");
+    if (gabarit === "liste") return [listTitle, ...toItems(listItems)].filter(Boolean).join(". ");
+    if (gabarit === "comparatif")
+      return [cmpTitle, cmpLeftTitle, ...toItems(cmpLeftItems), cmpRightTitle, ...toItems(cmpRightItems)]
+        .filter(Boolean)
+        .join(". ");
+    if (gabarit === "chiffre-cle") return [figFigure, figLabel].filter(Boolean).join(" — ");
+    return baseText || "";
+  };
+
+  // Fond image IA pour un gabarit mono-panneau, dérivé de son contenu texte.
+  const generatePanelBg = async () => {
+    const promptBase = (panelPromptBase() || baseText || "arrière-plan de marque").slice(0, 280);
+    setError("");
+    setPanelBgLoading(true);
+    try {
+      const res = await fetch("/api/gen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modelId: "classic",
+          prompt: `${promptBase} — arrière-plan abstrait, sobre, sans texte`,
+          aspect: "square_1_1",
+          params: {},
+          describe: false,
+          useRefs: false,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Fond IA impossible");
+      if (data.imageUrl) setPanelBgImage(data.imageUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur fond IA");
+    } finally {
+      setPanelBgLoading(false);
+    }
+  };
+
   const autofill = () => {
     const texts = splitIntoZones(baseText || "", nbZones);
     setZones((cur) => cur.map((z, i) => ({ ...z, text: texts[i] || z.text })));
@@ -178,11 +220,12 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
     setImgUrl(undefined);
     try {
       const logoOpt = useLogo && logo ? { logo: { dataUrl: logo, size: 120 } } : {};
+      const panelOpt = { bg: panelBg, ...(panelBgImage ? { bgImage: panelBgImage } : {}) };
       let payload: Record<string, unknown>;
       if (gabarit === "quote-card") {
-        payload = { template: "quote-card", format, quote, author, bg: panelBg, ...logoOpt };
+        payload = { template: "quote-card", format, quote, author, ...panelOpt, ...logoOpt };
       } else if (gabarit === "liste") {
-        payload = { template: "liste", format, title: listTitle, items: toItems(listItems), bg: panelBg, ...logoOpt };
+        payload = { template: "liste", format, title: listTitle, items: toItems(listItems), ...panelOpt, ...logoOpt };
       } else if (gabarit === "comparatif") {
         payload = {
           template: "comparatif",
@@ -192,11 +235,11 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
           leftItems: toItems(cmpLeftItems),
           rightTitle: cmpRightTitle,
           rightItems: toItems(cmpRightItems),
-          bg: panelBg,
+          ...panelOpt,
           ...logoOpt,
         };
       } else if (gabarit === "chiffre-cle") {
-        payload = { template: "chiffre-cle", format, figure: figFigure, label: figLabel, bg: panelBg, ...logoOpt };
+        payload = { template: "chiffre-cle", format, figure: figFigure, label: figLabel, ...panelOpt, ...logoOpt };
       } else {
         payload = {
           template: "column-n",
@@ -226,17 +269,44 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
   const renderBgPicker = () => (
     <div className="space-y-1">
       <Label className="text-xs">Fond</Label>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         {palette.map((c) => (
           <button
             key={c}
             type="button"
-            onClick={() => setPanelBg(c)}
+            onClick={() => {
+              setPanelBg(c);
+              setPanelBgImage(undefined);
+            }}
             title={c}
-            className={`h-7 w-7 rounded border ${panelBg === c ? "ring-2 ring-[#10aee2] ring-offset-1" : ""}`}
+            className={`h-7 w-7 rounded border ${panelBg === c && !panelBgImage ? "ring-2 ring-[#10aee2] ring-offset-1" : ""}`}
             style={{ background: c }}
           />
         ))}
+        {panelBgImage && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={panelBgImage} alt="" className="ml-1 h-7 w-7 rounded border object-cover ring-2 ring-[#10aee2] ring-offset-1" />
+            <button
+              type="button"
+              onClick={() => setPanelBgImage(undefined)}
+              title="Retirer le fond IA"
+              className="text-[11px] text-slate-400 hover:text-red-500"
+            >
+              ✕
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={generatePanelBg}
+          disabled={panelBgLoading}
+          className="ml-1 flex items-center gap-1 rounded border px-1.5 py-1 text-[10px] text-[#10aee2] hover:bg-[#10aee2]/5"
+          title="Générer un fond image IA à partir du contenu"
+        >
+          {panelBgLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+          Fond IA
+        </button>
       </div>
     </div>
   );
