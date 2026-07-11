@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAIConfig } from "@/context/AIConfigContext";
 import type { CarouselPlatform, SocialPlatform } from "@/lib/ai/provider-manager";
 import { GenerationJobs } from "@/components/generation/generation-jobs";
+import { StructuredVisual } from "@/components/generation/structured-visual";
 
 type SourceKind = "text" | "url" | "pdf" | "image";
 type WorkType = "post" | "carousel" | "image" | "video" | "article";
@@ -999,6 +1000,22 @@ function DashboardContent() {
                 références de marque activables par carte. Chaque « + Image(s) » ouvre une carte de tâche.
               </p>
               <GenerationJobs targetId="standalone" baseText={synthesisText || activeContent} />
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Layers3 className="h-5 w-5 text-[#10aee2]" />
+                Visuel structuré (gabarit)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-3 text-sm text-slate-500">
+                Compose un visuel à zones (ex. colonne à N parties empilées) avec <strong>texte net</strong> et
+                couleurs de ta charte. Le texte peut être auto-rempli depuis tes sources / ta synthèse.
+              </p>
+              <StructuredVisual baseText={synthesisText || activeContent} />
             </CardContent>
           </Card>
 
