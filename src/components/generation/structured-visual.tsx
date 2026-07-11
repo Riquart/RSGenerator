@@ -20,6 +20,19 @@ interface Zone {
   bgImage?: string; // fond image IA (optionnel)
 }
 
+type Gabarit = "column-n" | "quote-card" | "liste" | "comparatif" | "chiffre-cle";
+
+const GABARITS: { value: Gabarit; label: string }[] = [
+  { value: "column-n", label: "Colonne à N zones" },
+  { value: "liste", label: "Liste (titre + puces)" },
+  { value: "comparatif", label: "Comparatif (2 colonnes)" },
+  { value: "chiffre-cle", label: "Chiffre-clé" },
+  { value: "quote-card", label: "Quote-card" },
+];
+
+// Découpe un textarea en items (une ligne = un item).
+const toItems = (s: string): string[] => s.split("\n").map((x) => x.trim()).filter(Boolean);
+
 const FORMATS = [
   { value: "portrait_4_5", label: "Portrait 4:5" },
   { value: "story_9_16", label: "Story 9:16" },
@@ -54,10 +67,23 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
     Array.from({ length: 4 }, (_, i) => ({ text: "", bg: FALLBACK_COLORS[i % FALLBACK_COLORS.length] }))
   );
 
-  const [gabarit, setGabarit] = useState<"column-n" | "quote-card">("column-n");
+  const [gabarit, setGabarit] = useState<Gabarit>("column-n");
+  const [panelBg, setPanelBg] = useState("#0E254F");
+  // quote-card
   const [quote, setQuote] = useState("");
   const [author, setAuthor] = useState("");
-  const [quoteBg, setQuoteBg] = useState("#0E254F");
+  // liste
+  const [listTitle, setListTitle] = useState("");
+  const [listItems, setListItems] = useState("");
+  // comparatif
+  const [cmpTitle, setCmpTitle] = useState("");
+  const [cmpLeftTitle, setCmpLeftTitle] = useState("Avant");
+  const [cmpLeftItems, setCmpLeftItems] = useState("");
+  const [cmpRightTitle, setCmpRightTitle] = useState("Après");
+  const [cmpRightItems, setCmpRightItems] = useState("");
+  // chiffre-clé
+  const [figFigure, setFigFigure] = useState("");
+  const [figLabel, setFigLabel] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -78,7 +104,7 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
         if (pal.length > 1) {
           setPalette(pal);
           setZones((cur) => cur.map((z, i) => ({ ...z, bg: pal[i % pal.length] })));
-          setQuoteBg(pal[0]);
+          setPanelBg(pal[0]);
         }
         if (brand.logoBase64) setLogo(brand.logoBase64);
       })
@@ -139,20 +165,46 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
       setError("Remplis au moins une zone (ou clique « Auto-remplir »).");
       return;
     }
+    if (gabarit === "liste" && toItems(listItems).length === 0) {
+      setError("Ajoute au moins une puce (une par ligne).");
+      return;
+    }
+    if (gabarit === "chiffre-cle" && !figFigure.trim()) {
+      setError("Renseigne le chiffre-clé.");
+      return;
+    }
     setError("");
     setLoading(true);
     setImgUrl(undefined);
     try {
       const logoOpt = useLogo && logo ? { logo: { dataUrl: logo, size: 120 } } : {};
-      const payload =
-        gabarit === "quote-card"
-          ? { template: "quote-card", format, quote, author, bg: quoteBg, ...logoOpt }
-          : {
-              template: "column-n",
-              format,
-              zones: zones.map((z) => ({ text: z.text, bg: z.bg, bgImage: z.bgImage })),
-              ...logoOpt,
-            };
+      let payload: Record<string, unknown>;
+      if (gabarit === "quote-card") {
+        payload = { template: "quote-card", format, quote, author, bg: panelBg, ...logoOpt };
+      } else if (gabarit === "liste") {
+        payload = { template: "liste", format, title: listTitle, items: toItems(listItems), bg: panelBg, ...logoOpt };
+      } else if (gabarit === "comparatif") {
+        payload = {
+          template: "comparatif",
+          format,
+          title: cmpTitle,
+          leftTitle: cmpLeftTitle,
+          leftItems: toItems(cmpLeftItems),
+          rightTitle: cmpRightTitle,
+          rightItems: toItems(cmpRightItems),
+          bg: panelBg,
+          ...logoOpt,
+        };
+      } else if (gabarit === "chiffre-cle") {
+        payload = { template: "chiffre-cle", format, figure: figFigure, label: figLabel, bg: panelBg, ...logoOpt };
+      } else {
+        payload = {
+          template: "column-n",
+          format,
+          zones: zones.map((z) => ({ text: z.text, bg: z.bg, bgImage: z.bgImage })),
+          ...logoOpt,
+        };
+      }
       const res = await fetch("/api/visual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,18 +223,39 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
     }
   };
 
+  const renderBgPicker = () => (
+    <div className="space-y-1">
+      <Label className="text-xs">Fond</Label>
+      <div className="flex flex-wrap gap-1">
+        {palette.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setPanelBg(c)}
+            title={c}
+            className={`h-7 w-7 rounded border ${panelBg === c ? "ring-2 ring-[#10aee2] ring-offset-1" : ""}`}
+            style={{ background: c }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[160px] space-y-1">
+        <div className="min-w-[190px] space-y-1">
           <Label className="text-xs">Gabarit</Label>
-          <Select value={gabarit} onValueChange={(v) => setGabarit(v as "column-n" | "quote-card")}>
+          <Select value={gabarit} onValueChange={(v) => setGabarit(v as Gabarit)}>
             <SelectTrigger className="h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="column-n">Colonne à N zones</SelectItem>
-              <SelectItem value="quote-card">Quote-card</SelectItem>
+              {GABARITS.map((g) => (
+                <SelectItem key={g.value} value={g.value}>
+                  {g.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -304,21 +377,65 @@ export function StructuredVisual({ baseText }: { baseText: string }) {
                 className="h-9 bg-white"
               />
             </div>
+            {renderBgPicker()}
+          </div>
+        </div>
+      )}
+
+      {/* Liste */}
+      {gabarit === "liste" && (
+        <div className="space-y-3 rounded-lg border bg-slate-50 p-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Titre</Label>
+            <Input value={listTitle} onChange={(e) => setListTitle(e.target.value)} placeholder="ex : 3 points à retenir" className="h-9 bg-white" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Puces (une par ligne)</Label>
+            <Textarea
+              value={listItems}
+              onChange={(e) => setListItems(e.target.value)}
+              placeholder={"Premier point\nDeuxième point\nTroisième point"}
+              className="min-h-24 bg-white text-sm"
+            />
+          </div>
+          {renderBgPicker()}
+        </div>
+      )}
+
+      {/* Comparatif */}
+      {gabarit === "comparatif" && (
+        <div className="space-y-3 rounded-lg border bg-slate-50 p-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Titre (optionnel)</Label>
+            <Input value={cmpTitle} onChange={(e) => setCmpTitle(e.target.value)} placeholder="ex : Avant / Après 2027" className="h-9 bg-white" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs">Fond</Label>
-              <div className="flex flex-wrap gap-1">
-                {palette.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setQuoteBg(c)}
-                    title={c}
-                    className={`h-7 w-7 rounded border ${quoteBg === c ? "ring-2 ring-[#10aee2] ring-offset-1" : ""}`}
-                    style={{ background: c }}
-                  />
-                ))}
-              </div>
+              <Input value={cmpLeftTitle} onChange={(e) => setCmpLeftTitle(e.target.value)} placeholder="Titre colonne gauche" className="h-9 bg-white" />
+              <Textarea value={cmpLeftItems} onChange={(e) => setCmpLeftItems(e.target.value)} placeholder={"Élément 1\nÉlément 2"} className="min-h-24 bg-white text-sm" />
             </div>
+            <div className="space-y-1">
+              <Input value={cmpRightTitle} onChange={(e) => setCmpRightTitle(e.target.value)} placeholder="Titre colonne droite" className="h-9 bg-white" />
+              <Textarea value={cmpRightItems} onChange={(e) => setCmpRightItems(e.target.value)} placeholder={"Élément 1\nÉlément 2"} className="min-h-24 bg-white text-sm" />
+            </div>
+          </div>
+          {renderBgPicker()}
+        </div>
+      )}
+
+      {/* Chiffre-clé */}
+      {gabarit === "chiffre-cle" && (
+        <div className="space-y-3 rounded-lg border bg-slate-50 p-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[140px] space-y-1">
+              <Label className="text-xs">Chiffre-clé</Label>
+              <Input value={figFigure} onChange={(e) => setFigFigure(e.target.value)} placeholder="ex : 2027" className="h-9 bg-white" />
+            </div>
+            {renderBgPicker()}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Légende</Label>
+            <Textarea value={figLabel} onChange={(e) => setFigLabel(e.target.value)} placeholder="ex : l'année du changement pour les IDEL" className="min-h-16 bg-white text-sm" />
           </div>
         </div>
       )}

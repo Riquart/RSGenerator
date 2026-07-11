@@ -134,6 +134,73 @@ function quoteCard(o: { quote?: string; author?: string; bg?: string; bgImage?: 
   );
 }
 
+// ── Gabarit : liste (titre + puces) ──
+function listCard(o: { title?: string; items?: string[]; bg?: string; bgImage?: string; logo?: Logo }, w: number, h: number): ReactElement {
+  const bg = o.bg || "#0E254F";
+  const color = idealText(bg);
+  const items = (Array.isArray(o.items) ? o.items : []).filter((s) => s && s.trim());
+  const itemSize = Math.max(28, 48 - items.length * 3);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 90, position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
+      {bgImageLayers(o.bgImage, w, h, rgba(bg, 0.55))}
+      {o.title ? <div style={{ display: "flex", fontSize: 58, fontWeight: 700, color, lineHeight: 1.15, marginBottom: 40 }}>{o.title}</div> : null}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "center" }}>
+        {items.map((it, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", marginBottom: 22 }}>
+            <div style={{ display: "flex", fontSize: itemSize, fontWeight: 700, color, marginRight: 20 }}>•</div>
+            <div style={{ display: "flex", fontSize: itemSize, fontWeight: 400, color, lineHeight: 1.3 }}>{it}</div>
+          </div>
+        ))}
+      </div>
+      {logoNode(o.logo)}
+    </div>
+  );
+}
+
+// ── Gabarit : comparatif (2 colonnes) ──
+function comparatif(o: { title?: string; leftTitle?: string; leftItems?: string[]; rightTitle?: string; rightItems?: string[]; bg?: string; bgImage?: string; logo?: Logo }, w: number, h: number): ReactElement {
+  const bg = o.bg || "#0E254F";
+  const color = idealText(bg);
+  const L = (Array.isArray(o.leftItems) ? o.leftItems : []).filter((s) => s && s.trim());
+  const R = (Array.isArray(o.rightItems) ? o.rightItems : []).filter((s) => s && s.trim());
+  const col = { display: "flex", flexDirection: "column" as const, flex: 1, padding: "0 32px" };
+  const item = (it: string, i: number) => (
+    <div key={i} style={{ display: "flex", fontSize: 30, fontWeight: 400, color, marginBottom: 16, lineHeight: 1.3 }}>{it}</div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 80, position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
+      {bgImageLayers(o.bgImage, w, h, rgba(bg, 0.55))}
+      {o.title ? <div style={{ display: "flex", justifyContent: "center", fontSize: 52, fontWeight: 700, color, marginBottom: 44 }}>{o.title}</div> : null}
+      <div style={{ display: "flex", flexDirection: "row", flex: 1 }}>
+        <div style={col}>
+          {o.leftTitle ? <div style={{ display: "flex", fontSize: 40, fontWeight: 700, color, marginBottom: 26 }}>{o.leftTitle}</div> : null}
+          {L.map(item)}
+        </div>
+        <div style={{ display: "flex", width: 2, backgroundColor: rgba(color, 0.3) }} />
+        <div style={col}>
+          {o.rightTitle ? <div style={{ display: "flex", fontSize: 40, fontWeight: 700, color, marginBottom: 26 }}>{o.rightTitle}</div> : null}
+          {R.map(item)}
+        </div>
+      </div>
+      {logoNode(o.logo)}
+    </div>
+  );
+}
+
+// ── Gabarit : chiffre-clé ──
+function chiffreCle(o: { figure?: string; label?: string; bg?: string; bgImage?: string; logo?: Logo }, w: number, h: number): ReactElement {
+  const bg = o.bg || "#0E254F";
+  const color = idealText(bg);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 90, justifyContent: "center", alignItems: "center", position: "relative", overflow: "hidden", fontFamily: "Inter", backgroundColor: bg }}>
+      {bgImageLayers(o.bgImage, w, h, rgba(bg, 0.55))}
+      <div style={{ display: "flex", fontSize: 220, fontWeight: 700, color, lineHeight: 1 }}>{o.figure || ""}</div>
+      {o.label ? <div style={{ display: "flex", fontSize: 44, fontWeight: 400, color, textAlign: "center", marginTop: 28, lineHeight: 1.3 }}>{o.label}</div> : null}
+      {logoNode(o.logo)}
+    </div>
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -149,6 +216,12 @@ export async function POST(req: NextRequest) {
       element = carouselCover({ ...body, logo }, w, h);
     } else if (template === "quote-card") {
       element = quoteCard({ ...body, logo }, w, h);
+    } else if (template === "liste") {
+      element = listCard({ ...body, logo }, w, h);
+    } else if (template === "comparatif") {
+      element = comparatif({ ...body, logo }, w, h);
+    } else if (template === "chiffre-cle") {
+      element = chiffreCle({ ...body, logo }, w, h);
     } else {
       const zones: Zone[] = Array.isArray(body.zones) ? body.zones.slice(0, 6) : [];
       if (zones.length === 0) {
