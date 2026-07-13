@@ -1304,13 +1304,45 @@ Texte du slide : ${slideText}`
     return { description: text, trace }
   }
 
+  // Repli via un lecteur proxy (Jina AI Reader) : il rend la page comme un
+  // navigateur et renvoie du texte/markdown, ce qui débloque la plupart des
+  // sites en 403 anti-robot ou rendus en JS. Clé optionnelle (JINA_API_KEY)
+  // pour de meilleurs quotas.
+  private async scrapeViaProxy(url: string): Promise<ScrapedContent> {
+    const key = process.env.JINA_API_KEY
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      redirect: 'follow',
+      headers: {
+        Accept: 'text/plain',
+        'X-Return-Format': 'markdown',
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+      },
+      signal: AbortSignal.timeout(25000),
+    })
+    if (!res.ok) {
+      throw new Error(`proxy HTTP ${res.status}`)
+    }
+    const text = await res.text()
+    // Jina préfixe : "Title: ...\nURL Source: ...\nMarkdown Content:\n<contenu>".
+    let title = url
+    const titleMatch = text.match(/^Title:\s*(.+)$/m)
+    if (titleMatch) title = titleMatch[1].trim()
+    const marker = 'Markdown Content:'
+    const idx = text.indexOf(marker)
+    const content = (idx !== -1 ? text.slice(idx + marker.length) : text).trim()
+    if (!content) throw new Error('proxy returned empty content')
+    return { title, content: content.slice(0, 20000) }
+  }
+
   public async scrapeUrl(url: string): Promise<ScrapedContent> {
+    // 1) Tentative directe (rapide, texte propre via Readability).
     try {
       const { Readability } = await import('@mozilla/readability')
       const { JSDOM } = await import('jsdom')
 
       const response = await fetch(url, {
         redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
         headers: {
           // Signature de navigateur réaliste et complète : beaucoup de sites
           // renvoient 403 à un User-Agent tronqué ou sans en-têtes Accept.
@@ -1335,16 +1367,25 @@ Texte du slide : ${slideText}`
       const reader = new Readability(dom.window.document)
       const article = reader.parse()
 
-      if (!article) {
-        return { title: url, content: html.replace(/<[^>]*>/g, ' ').slice(0, 8000) }
+      const direct = article?.textContent?.trim()
+      if (direct && direct.length > 0) {
+        return { title: article!.title || url, content: article!.textContent || '' }
       }
-
-      return {
-        title: article.title || url,
-        content: article.textContent || '',
+      // Contenu vide (page JS, mur, etc.) → on tente le proxy avant d'abandonner.
+      const stripped = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+      if (stripped.length > 300) {
+        return { title: url, content: stripped.slice(0, 8000) }
       }
-    } catch (error) {
-      throw new Error(`Scraping failed: ${error instanceof Error ? error.message : 'unknown'}`)
+      throw new Error('empty content')
+    } catch (directError) {
+      // 2) Repli proxy (débloque 403 / anti-robot / rendu JS).
+      try {
+        return await this.scrapeViaProxy(url)
+      } catch (proxyError) {
+        const d = directError instanceof Error ? directError.message : 'unknown'
+        const p = proxyError instanceof Error ? proxyError.message : 'unknown'
+        throw new Error(`Scraping failed: ${d} (proxy: ${p})`)
+      }
     }
   }
 
