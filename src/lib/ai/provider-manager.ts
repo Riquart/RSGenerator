@@ -1331,7 +1331,26 @@ Texte du slide : ${slideText}`
     const idx = text.indexOf(marker)
     const content = (idx !== -1 ? text.slice(idx + marker.length) : text).trim()
     if (!content) throw new Error('proxy returned empty content')
+    if (this.looksLikeChallenge(title, content)) {
+      throw new Error('anti-bot challenge (403)')
+    }
     return { title, content: content.slice(0, 20000) }
+  }
+
+  // Détecte une page d'interstitiel anti-robot (Cloudflare, etc.) renvoyée à la
+  // place du vrai contenu, pour éviter d'importer une page « Vérification de sécurité ».
+  private looksLikeChallenge(title: string, content: string): boolean {
+    const hay = `${title}\n${content.slice(0, 800)}`.toLowerCase()
+    return [
+      'just a moment',
+      'checking your browser',
+      'vérification de sécurité',
+      'verification de securite',
+      'enable javascript and cookies',
+      'cf-browser-verification',
+      'attention required',
+      'prouver que vous êtes un être humain',
+    ].some((m) => hay.includes(m))
   }
 
   public async scrapeUrl(url: string): Promise<ScrapedContent> {
