@@ -150,6 +150,7 @@ function DashboardContent() {
   const [includeScreenshotsInVisuals, setIncludeScreenshotsInVisuals] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState("");
   const [error, setError] = useState("");
+  const [urlError, setUrlError] = useState("");
   const [results, setResults] = useState<GeneratedItem[]>([]);
   const [copiedId, setCopiedId] = useState("");
   const [synthesisOpen, setSynthesisOpen] = useState(false);
@@ -231,8 +232,12 @@ function DashboardContent() {
   };
 
   const ingestUrl = async (urlToIngest = url.trim()) => {
-    if (!urlToIngest.trim()) return null;
+    if (!urlToIngest.trim()) {
+      setUrlError("Saisis d'abord une URL.");
+      return null;
+    }
     setError("");
+    setUrlError("");
     setLoadingLabel("Analyse de l'URL");
     try {
       const res = await fetch("/api/ai/scrape", {
@@ -241,7 +246,14 @@ function DashboardContent() {
         body: JSON.stringify({ url: urlToIngest }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Analyse impossible");
+      if (!res.ok || data.error) {
+        const raw = String(data.error || `HTTP ${res.status}`);
+        // 403/401 = le site bloque les robots ; message actionnable.
+        const friendly = /40[13]/.test(raw)
+          ? "Ce site bloque la lecture automatique (protection anti-robot). Copie/colle le texte dans « Texte libre »."
+          : raw;
+        throw new Error(friendly);
+      }
       const source = {
         kind: "url",
         title: data.title || urlToIngest,
@@ -249,9 +261,10 @@ function DashboardContent() {
       } satisfies Omit<SourceItem, "id" | "selected">;
       addSource(source);
       setUrl("");
+      setUrlError("");
       return source;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible d'analyser l'URL");
+      setUrlError(err instanceof Error ? err.message : "Impossible d'analyser l'URL");
       return null;
     } finally {
       setLoadingLabel("");
@@ -649,13 +662,21 @@ function DashboardContent() {
                     placeholder="https://..."
                   />
                   <Button variant="outline" onClick={() => void ingestUrl()} disabled={!url.trim() || isBusy}>
-                    <Link2 className="h-4 w-4" />
+                    {loadingLabel === "Analyse de l'URL" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4" />
+                    )}
                     Ajouter
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500">
-                  Clique sur Ajouter, ou lance directement la génération : l'URL sera ajoutée automatiquement.
-                </p>
+                {urlError ? (
+                  <p className="text-xs text-red-600">{urlError}</p>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Clique sur Ajouter, ou lance directement la génération : l'URL sera ajoutée automatiquement.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-3 rounded-lg border p-4">
